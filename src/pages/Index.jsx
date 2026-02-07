@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Mic, MicOff, Image, Edit3 } from 'lucide-react';
 import { useRecorder } from '../hooks/useRecorder';
 import { createRecord } from '../services/records';
+import { processAudio, extractPeople, generateTags } from '../services/ai';
 import RecordButton from '../components/RecordButton';
 import RecentRecords from '../components/RecentRecords';
 import ImageUpload from '../components/ImageUpload';
@@ -23,6 +24,8 @@ const Index = () => {
   const [hasRecorded, setHasRecorded] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [extractedPeople, setExtractedPeople] = useState([]);
+  const [generatedTags, setGeneratedTags] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleStartRecording = useCallback(async () => {
@@ -42,16 +45,15 @@ const Index = () => {
 
     setIsTranscribing(true);
     try {
-      // TODO: 调用实际的 AI 转写 API
-      // 这里先模拟一个返回
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // 调用 AI 服务进行转写、人物提取和标签生成
+      const result = await processAudio(audioBlob);
 
-      const mockTranscript = '今天和小明一起喝了咖啡，聊了聊最近的工作和生活。他说他最近在做一个新项目，压力挺大的。我们还讨论了周末去爬山的计划。';
-
-      setTranscript(mockTranscript);
+      setTranscript(result.transcript);
+      setExtractedPeople(result.people);
+      setGeneratedTags(result.tags);
     } catch (err) {
       console.error('转写失败:', err);
-      alert('转写失败，请重试');
+      alert(`转写失败: ${err.message}，请检查 API 配置`);
     } finally {
       setIsTranscribing(false);
     }
@@ -67,9 +69,9 @@ const Index = () => {
       const record = {
         transcript: transcript || '暂无转写',
         summary: transcript ? `录音转写：${transcript.slice(0, 100)}...` : '',
-        people: extractPeopleFromTranscript(transcript),
+        people: extractedPeople,
         events: [],
-        tags: generateTagsFromTranscript(transcript)
+        tags: generatedTags.length > 0 ? generatedTags : ['未分类']
       };
 
       await createRecord(record);
@@ -77,6 +79,8 @@ const Index = () => {
       // 重置状态
       setHasRecorded(false);
       setTranscript('');
+      setExtractedPeople([]);
+      setGeneratedTags([]);
       resetRecording();
 
       alert('保存成功！');
@@ -88,25 +92,34 @@ const Index = () => {
     }
   };
 
-  // 从转写文本中提取人物（简单实现，后续由AI完善）
-  const extractPeopleFromTranscript = (text) => {
-    if (!text) return [];
-    // 简单规则：常见的称呼词后面可能是人名
-    // TODO: 后续由 AI 精确提取
-    return [];
+  // 从转写文本中提取人物（使用 AI）
+  const handleExtractPeople = async () => {
+    if (!transcript) return;
+    try {
+      const people = await extractPeople(transcript);
+      setExtractedPeople(people);
+    } catch (err) {
+      console.error('人物提取失败:', err);
+    }
   };
 
-  // 从转写文本生成标签
-  const generateTagsFromTranscript = (text) => {
-    if (!text) return [];
-    // TODO: 后续由 AI 精确生成
-    return ['未分类'];
+  // 从转写文本生成标签（使用 AI）
+  const handleGenerateTags = async () => {
+    if (!transcript) return;
+    try {
+      const tags = await generateTags(transcript);
+      setGeneratedTags(tags);
+    } catch (err) {
+      console.error('标签生成失败:', err);
+    }
   };
 
   // 重新录音
   const handleReRecord = () => {
     setHasRecorded(false);
     setTranscript('');
+    setExtractedPeople([]);
+    setGeneratedTags([]);
     resetRecording();
   };
 
@@ -114,12 +127,18 @@ const Index = () => {
   const handleTextSave = async (text) => {
     setIsSaving(true);
     try {
+      // 并行提取人物和生成标签
+      const [people, tags] = await Promise.all([
+        extractPeople(text),
+        generateTags(text)
+      ]);
+
       const record = {
         transcript: text,
         summary: `文本记录：${text.slice(0, 50)}...`,
-        people: extractPeopleFromTranscript(text),
+        people: people,
         events: [],
-        tags: generateTagsFromTranscript(text)
+        tags: tags.length > 0 ? tags : ['未分类']
       };
 
       await createRecord(record);
@@ -190,6 +209,39 @@ const Index = () => {
                   <div className="bg-white border border-gray-200 rounded-lg p-4 text-left">
                     <p className="text-sm text-gray-600 mb-1">转写内容：</p>
                     <p className="text-gray-800">{transcript}</p>
+                  </div>
+                )}
+
+                {/* AI 提取结果 */}
+                {(extractedPeople.length > 0 || generatedTags.length > 0) && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-left">
+                    {/* 人物标签 */}
+                    {extractedPeople.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-sm text-gray-600 mb-1">识别到的人物：</p>
+                        <div className="flex flex-wrap gap-2">
+                          {extractedPeople.map((person, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
+                              {person}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 事件标签 */}
+                    {generatedTags.length > 0 && (
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">事件标签：</p>
+                        <div className="flex flex-wrap gap-2">
+                          {generatedTags.map((tag, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
