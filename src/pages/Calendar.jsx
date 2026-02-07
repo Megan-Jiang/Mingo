@@ -11,13 +11,15 @@ import {
   StarDeco,
 } from "../components/DecoElements";
 
-type ViewMode = "month" | "week" | "day";
+// 视图类型
+// type ViewMode = "month" | "week" | "day";
 
-interface SpecialDay {
-  date: number;
-  type: "birthday" | "holiday" | "anniversary";
-  name: string;
-}
+// 特殊日期类型
+// interface SpecialDay {
+//   date: number;
+//   type: "birthday" | "holiday" | "anniversary";
+//   name: string;
+// }
 
 const specialDays = [
   { date: 14, type: "holiday", name: "情人节" },
@@ -99,7 +101,7 @@ const Calendar = () => {
 
       {/* 视图切换 */}
       <div className="flex gap-2 mb-6 justify-center">
-        {(["month", "week", "day"] as ViewMode[]).map((mode) => (
+        {["month", "week", "day"].map((mode) => (
           <motion.button
             key={mode}
             onClick={() => setViewMode(mode)}
@@ -143,9 +145,9 @@ const Calendar = () => {
             return (
               <motion.div
                 key={date}
-                className={`aspect-square rounded-2xl flex flex-col items-center justify-center relative transition-all duration-300 ${
+                className={`h-12 rounded-2xl flex flex-col items-center justify-center relative transition-all duration-300 ${
                   isCurrentToday
-                    ? "bg-warm-yellow ring-2 ring-warm-yellow ring-offset-2"
+                    ? "bg-warm-yellow ring-2 ring-warm-yellow ring-offset-1"
                     : specialDay
                     ? "bg-warm-pink/40"
                     : "bg-gray-50 hover:bg-warm-yellow/20"
