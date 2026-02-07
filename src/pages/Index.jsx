@@ -89,7 +89,7 @@ const Index = () => {
     }
   };
 
-  // 保存记录
+  // 保存记录（支持多人物拆分）
   const handleSave = async () => {
     if (!audioBlob) return;
 
@@ -97,16 +97,33 @@ const Index = () => {
     try {
       // 保存整理后的描述（优先）或原始转写
       const descriptionToSave = organizedText || transcript;
+      const people = extractedPeople;
+      const tags = generatedTags.length > 0 ? generatedTags : ['未分类'];
 
-      const record = {
+      // 构建记录数据
+      const baseRecord = {
         transcript: descriptionToSave || '暂无转写',
         summary: descriptionToSave ? `录音记录：${descriptionToSave.slice(0, 100)}...` : '',
-        people: extractedPeople,
         events: [],
-        tags: generatedTags.length > 0 ? generatedTags : ['未分类']
+        tags: tags
       };
 
-      await createRecord(record);
+      // 根据人物数量决定保存方式
+      if (people.length === 0) {
+        // 无人名时保存一条记录
+        await createRecord({ ...baseRecord, people: [] });
+      } else if (people.length === 1) {
+        // 单人物时保存一条记录
+        await createRecord({ ...baseRecord, people: people });
+      } else {
+        // 多人物时拆分保存，每个人物一条记录
+        for (const person of people) {
+          await createRecord({
+            ...baseRecord,
+            people: [person]
+          });
+        }
+      }
 
       // 重置状态
       setHasRecorded(false);
@@ -116,7 +133,7 @@ const Index = () => {
       setGeneratedTags([]);
       resetRecording();
 
-      alert('保存成功！');
+      alert(people.length > 1 ? `已保存 ${people.length} 条记录` : '保存成功！');
     } catch (err) {
       console.error('保存失败:', err);
       alert('保存失败，请重试');
@@ -135,7 +152,7 @@ const Index = () => {
     resetRecording();
   };
 
-  // 文本输入保存
+  // 文本输入保存（支持多人物拆分）
   const handleTextSave = async (text) => {
     setIsSaving(true);
     try {
@@ -145,16 +162,28 @@ const Index = () => {
         generateTags(text)
       ]);
 
-      const record = {
+      const baseRecord = {
         transcript: text,
         summary: `文本记录：${text.slice(0, 50)}...`,
-        people: people,
         events: [],
         tags: tags.length > 0 ? tags : ['未分类']
       };
 
-      await createRecord(record);
-      alert('保存成功！');
+      // 根据人物数量决定保存方式
+      if (people.length === 0) {
+        await createRecord({ ...baseRecord, people: [] });
+      } else if (people.length === 1) {
+        await createRecord({ ...baseRecord, people: people });
+      } else {
+        for (const person of people) {
+          await createRecord({
+            ...baseRecord,
+            people: [person]
+          });
+        }
+      }
+
+      alert(people.length > 1 ? `已保存 ${people.length} 条记录` : '保存成功！');
     } catch (err) {
       console.error('保存失败:', err);
       throw err;
