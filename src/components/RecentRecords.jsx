@@ -1,67 +1,51 @@
-import React, { useEffect, useState } from 'react';
-import { Clock, Users, Tag, Play } from 'lucide-react';
-import { getRecords } from '../services/records';
+import { useEffect, useState } from "react";
+import { Clock, Users, Tag, Play } from "lucide-react";
+import { motion } from "framer-motion";
+import { getRecords } from "../services/records";
+import { EmptyState } from "./EmptyState";
 
 /**
  * 格式化日期时间
- * @param {string} createdAt - ISO 日期字符串
- * @returns {{ date: string, time: string }}
  */
 const formatDateTime = (createdAt) => {
   if (!createdAt) {
-    return { date: '-', time: '-' };
+    return { date: "-", time: "-" };
   }
   const date = new Date(createdAt);
-  const dateStr = date.toLocaleDateString('zh-CN');
-  const timeStr = date.toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit'
+  const dateStr = date.toLocaleDateString("zh-CN");
+  const timeStr = date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
   return { date: dateStr, time: timeStr };
 };
 
 /**
- * 最近记录组件
- * @param {Object} props
- * @param {Array} props.records - 记录数组（可选，不传则从接口加载）
+ * 计算相对时间
  */
+const getRelativeTime = (createdAt) => {
+  if (!createdAt) return "";
+
+  const now = new Date();
+  const date = new Date(createdAt);
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "刚刚";
+  if (diffMins < 60) return `${diffMins}分钟前`;
+  if (diffHours < 24) return `${diffHours}小时前`;
+  if (diffDays < 7) return `${diffDays}天前`;
+
+  return date.toLocaleDateString("zh-CN");
+};
+
 const RecentRecords = ({ records: propRecords }) => {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(!propRecords);
 
-  // 默认模拟数据（当没有真实数据时显示）
-  const defaultRecords = [
-    {
-      id: 1,
-      summary: '和小明讨论了项目进展，他最近工作压力比较大',
-      people: ['小明'],
-      tags: ['工作', '压力'],
-      date: '2024-01-15',
-      time: '14:30',
-      audio_url: null
-    },
-    {
-      id: 2,
-      summary: '和妈妈视频通话，她身体很好，不用担心',
-      people: ['妈妈'],
-      tags: ['家庭', '健康'],
-      date: '2024-01-14',
-      time: '19:00',
-      audio_url: null
-    },
-    {
-      id: 3,
-      summary: '参加同事生日聚会，大家玩得很开心',
-      people: ['同事'],
-      tags: ['聚会', '生日'],
-      date: '2024-01-13',
-      time: '18:30',
-      audio_url: null
-    }
-  ];
-
   // 如果传入了 records prop，直接使用
-  // 否则从接口加载
   useEffect(() => {
     if (propRecords) {
       setRecords(propRecords);
@@ -76,7 +60,7 @@ const RecentRecords = ({ records: propRecords }) => {
           setRecords(data);
         }
       } catch (err) {
-        console.warn('加载记录失败，使用默认数据:', err);
+        console.warn("加载记录失败:", err);
       } finally {
         setLoading(false);
       }
@@ -85,82 +69,94 @@ const RecentRecords = ({ records: propRecords }) => {
     fetchRecords();
   }, [propRecords]);
 
-  // 确定显示的记录列表
-  const displayRecords = records.length > 0 ? records : defaultRecords;
+  const displayRecords = records.length > 0 ? records : null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6">
-      <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-        <Clock className="h-5 w-5 text-[#897dbf]" />
-        最近记录
-      </h2>
-
+    <div>
       {loading && (
         <div className="text-center py-8">
-          <div className="animate-spin h-6 w-6 border-2 border-[#897dbf] border-t-transparent rounded-full mx-auto"></div>
+          <div className="animate-spin h-6 w-6 border-2 border-warm-purple border-t-transparent rounded-full mx-auto"></div>
         </div>
       )}
 
-      {!loading && (
-        <div className="space-y-4">
+      {!loading && !displayRecords && (
+        <EmptyState
+          emoji="📝"
+          message="还没有记录呢，开始添加吧～"
+          submessage="记录每一次温暖的互动"
+        />
+      )}
+
+      {!loading && displayRecords && (
+        <div className="space-y-3">
           {displayRecords.map((record) => {
-            const { date: dateStr, time: timeStr } = formatDateTime(record.created_at || record.date);
-            const summary = record.summary || record.transcript || '暂无摘要';
+            const { date: dateStr, time: timeStr } =
+              formatDateTime(record.created_at || record.date);
+            const summary =
+              record.summary || record.transcript || "暂无摘要";
             const people = record.people || [];
             const tags = record.tags || [];
+            const relativeTime = getRelativeTime(
+              record.created_at || record.date
+            );
 
             return (
-              <div
+              <motion.div
                 key={record.id}
-                className="border-l-4 border-[#fcd753] pl-4 py-3 hover:bg-[#e7e3b3] rounded-r-lg transition-colors"
+                className="bg-white rounded-3xl p-4 shadow-md shadow-warm-purple/8 relative overflow-hidden"
+                whileHover={{ scale: 1.01 }}
+                transition={{ duration: 0.2 }}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <Users className="h-4 w-4 text-[#897dbf]" />
-                    <span>{people.length > 0 ? people.join(', ') : '未知'}</span>
+                {/* 左侧装饰线 */}
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-warm-yellow to-[#FFEAA7] rounded-l-3xl" />
+
+                <div className="flex gap-3 ml-3">
+                  {/* 头像 */}
+                  <div className="w-12 h-12 rounded-full border-2 border-warm-yellow/50 bg-warm-cream flex items-center justify-center flex-shrink-0">
+                    {people.length > 0 ? (
+                      <span className="text-warm-purple font-medium">
+                        {people[0].charAt(0)}
+                      </span>
+                    ) : (
+                      <Users className="w-5 h-5 text-gray-400" />
+                    )}
                   </div>
-                  <div className="text-sm text-gray-500">
-                    {dateStr} {timeStr}
+
+                  {/* 内容 */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="text-warm-purple font-medium tracking-wide">
+                        {people.length > 0 ? people.join(", ") : "未知"}
+                      </h4>
+                      <div className="flex items-center gap-1 text-xs text-gray-400">
+                        <Clock className="w-3 h-3" />
+                        <span>{relativeTime || timeStr}</span>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-gray-600 mb-2 leading-relaxed line-clamp-2 tracking-wide">
+                      {summary}
+                    </p>
+
+                    {/* 标签 */}
+                    {tags.length > 0 && (
+                      <div className="flex gap-2 flex-wrap">
+                        {tags.slice(0, 3).map((tag, index) => (
+                          <span
+                            key={index}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-warm-purple/10 text-warm-purple rounded-full text-xs tracking-wide"
+                          >
+                            <Tag className="w-3 h-3" />
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                {/* 录音播放按钮 */}
-                {(record.audio_url || record.audioUrl) && (
-                  <div className="mb-2">
-                    <button className="flex items-center gap-2 text-[#897dbf] hover:text-[#6b5aa3] text-sm">
-                      <Play className="h-4 w-4" />
-                      播放录音
-                    </button>
-                  </div>
-                )}
-
-                <p className="text-gray-700 mb-2">{summary}</p>
-
-                {tags.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-gray-400" />
-                    <div className="flex gap-1">
-                      {tags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className="px-2 py-1 bg-[#d6b7d6] text-[#897dbf] text-xs rounded-full"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              </motion.div>
             );
           })}
-        </div>
-      )}
-
-      {displayRecords.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
-          <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-          <p>还没有记录，开始你的第一次录音吧！</p>
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
- 
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -9,101 +9,101 @@
 
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
- 
+
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
- 
-    --primary: 40 95% 50%; /* #f3ae0e */
+
+    --primary: 253 79% 68%; /* #9B8BDA */
     --primary-foreground: 0 0% 100%;
- 
-    --secondary: 36 25% 50%; /* #a78d66 */
-    --secondary-foreground: 0 0% 100%;
- 
-    --muted: 0 0% 96%; /* #fff8ee */
+
+    --secondary: 43 87% 56%; /* #FFE082 */
+    --secondary-foreground: 0 0% 0%;
+
+    --muted: 43 100% 95%; /* #FFF8E1 */
     --muted-foreground: 215.4 16.3% 46.9%;
- 
-    --accent: 0 0% 87%; /* #dfe0df */
+
+    --accent: 0 0% 87%;
     --accent-foreground: 222.2 47.4% 11.2%;
- 
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 40 95% 50%; /* #f3ae0e */
- 
-    --radius: 0.5rem;
+    --ring: 253 79% 68%;
+
+    --radius: 1rem;
   }
- 
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
- 
+
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
- 
+
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
- 
-    --primary: 40 95% 50%; /* #f3ae0e */
+
+    --primary: 253 79% 68%;
     --primary-foreground: 0 0% 100%;
- 
-    --secondary: 36 25% 50%; /* #a78d66 */
-    --secondary-foreground: 0 0% 100%;
- 
-    --muted: 0 0% 96%; /* #fff8ee */
+
+    --secondary: 43 87% 56%;
+    --secondary-foreground: 0 0% 0%;
+
+    --muted: 43 100% 93%;
     --muted-foreground: 215 20.2% 65.1%;
- 
-    --accent: 0 0% 87%; /* #dfe0df */
+
+    --accent: 0 0% 87%;
     --accent-foreground: 210 40% 98%;
- 
+
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
- 
+
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 40 95% 50%; /* #f3ae0e */
+    --ring: 253 79% 68%;
   }
 }
- 
+
 @layer base {
   * {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-warm-cream text-foreground;
   }
 }
 
-/* 自定义颜色类 */
+/* v2 配色方案覆盖 */
 .bg-background-custom {
-  background-color: #897dbf;
+  background-color: #FFF8E1;
 }
 
 .bg-primary-custom {
-  background-color: #fcd753;
+  background-color: #9B8BDA;
 }
 
 .bg-secondary-custom {
-  background-color: #e7e3b3;
+  background-color: #FFE082;
 }
 
 .bg-accent-custom {
-  background-color: #d6b7d6;
+  background-color: #FFD7D7;
 }
 
 .text-primary-custom {
-  color: #fcd753;
+  color: #9B8BDA;
 }
 
 .text-secondary-custom {
-  color: #e7e3b3;
+  color: #FFE082;
 }
 
 .border-primary-custom {
-  border-color: #fcd753;
+  border-color: #9B8BDA;
 }
 
 .border-secondary-custom {
-  border-color: #e7e3b3;
+  border-color: #FFE082;
 }

@@ -1,13 +1,15 @@
-import React, { useState, useCallback } from 'react';
-import { Mic, MicOff, Image, Edit3, UserPlus } from 'lucide-react';
-import { useRecorder } from '../hooks/useRecorder';
-import { createRecord } from '../services/records';
-import { createFriend } from '../services/friends';
-import { processAudio, extractPeople, generateTags, organizeTranscript } from '../services/ai';
-import RecordButton from '../components/RecordButton';
-import RecentRecords from '../components/RecentRecords';
-import ImageUpload from '../components/ImageUpload';
-import TextInput from '../components/TextInput';
+import { useState, useCallback } from "react";
+import { Mic, Image as ImageIcon, FileText, Tag, Clock } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { CloudDeco, StarDeco, HeartDeco } from "../components/DecoElements";
+import { EmptyState } from "../components/EmptyState";
+import { useRecorder } from "../hooks/useRecorder";
+import { createRecord } from "../services/records";
+import { processAudio, extractPeople, generateTags, organizeTranscript } from "../services/ai";
+import RecordButton from "../components/RecordButton";
+import RecentRecords from "../components/RecentRecords";
+import ImageUpload from "../components/ImageUpload";
+import TextInput from "../components/TextInput";
 
 const Index = () => {
   const {
@@ -24,16 +26,16 @@ const Index = () => {
   const [showTextInput, setShowTextInput] = useState(false);
   const [hasRecorded, setHasRecorded] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [organizedText, setOrganizedText] = useState('');
+  const [transcript, setTranscript] = useState("");
+  const [organizedText, setOrganizedText] = useState("");
   const [extractedPeople, setExtractedPeople] = useState([]);
   const [generatedTags, setGeneratedTags] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [addedFriends, setAddedFriends] = useState([]); // 已添加为朋友的人物
+  const [addedFriends, setAddedFriends] = useState([]);
 
   const handleStartRecording = useCallback(async () => {
     setHasRecorded(false);
-    setTranscript('');
+    setTranscript("");
     await startRecording();
   }, [startRecording]);
 
@@ -48,7 +50,6 @@ const Index = () => {
 
     setIsTranscribing(true);
     try {
-      // 调用 AI 服务进行转写、人物提取、标签生成和整理
       const result = await processAudio(audioBlob);
 
       setTranscript(result.transcript);
@@ -56,9 +57,8 @@ const Index = () => {
       setExtractedPeople(result.people);
       setGeneratedTags(result.tags);
     } catch (err) {
-      console.error('转写失败:', err);
-      // 如果是配置错误，显示更详细的提示
-      if (err.message.includes('未配置')) {
+      console.error("转写失败:", err);
+      if (err.message.includes("未配置")) {
         alert(err.message);
       } else {
         alert(`转写失败: ${err.message}，请检查 API 配置`);
@@ -76,16 +76,14 @@ const Index = () => {
     try {
       const result = await organizeTranscript(transcript, extractedPeople);
       setOrganizedText(result.organizedText);
-      // 如果整理后提取了新人，更新人物列表
       if (result.people.length > 0) {
         setExtractedPeople([...new Set([...extractedPeople, ...result.people])]);
       }
-      // 如果整理后生成了标签，更新标签
       if (result.tags.length > 0) {
         setGeneratedTags(result.tags);
       }
     } catch (err) {
-      console.error('整理失败:', err);
+      console.error("整理失败:", err);
     } finally {
       setIsTranscribing(false);
     }
@@ -97,28 +95,22 @@ const Index = () => {
 
     setIsSaving(true);
     try {
-      // 保存整理后的描述（优先）或原始转写
       const descriptionToSave = organizedText || transcript;
       const people = extractedPeople;
-      const tags = generatedTags.length > 0 ? generatedTags : ['未分类'];
+      const tags = generatedTags.length > 0 ? generatedTags : ["未分类"];
 
-      // 构建记录数据
       const baseRecord = {
-        transcript: descriptionToSave || '暂无转写',
-        summary: descriptionToSave ? `录音记录：${descriptionToSave.slice(0, 100)}...` : '',
+        transcript: descriptionToSave || "暂无转写",
+        summary: descriptionToSave ? `录音记录：${descriptionToSave.slice(0, 100)}...` : "",
         events: [],
         tags: tags
       };
 
-      // 根据人物数量决定保存方式
       if (people.length === 0) {
-        // 无人名时保存一条记录
         await createRecord({ ...baseRecord, people: [] });
       } else if (people.length === 1) {
-        // 单人物时保存一条记录
         await createRecord({ ...baseRecord, people: people });
       } else {
-        // 多人物时拆分保存，每个人物一条记录
         for (const person of people) {
           await createRecord({
             ...baseRecord,
@@ -127,18 +119,18 @@ const Index = () => {
         }
       }
 
-      // 重置状态
       setHasRecorded(false);
-      setTranscript('');
-      setOrganizedText('');
+      setTranscript("");
+      setOrganizedText("");
       setExtractedPeople([]);
       setGeneratedTags([]);
+      setAddedFriends([]);
       resetRecording();
 
-      alert(people.length > 1 ? `已保存 ${people.length} 条记录` : '保存成功！');
+      alert(people.length > 1 ? `已保存 ${people.length} 条记录` : "保存成功！");
     } catch (err) {
-      console.error('保存失败:', err);
-      alert('保存失败，请重试');
+      console.error("保存失败:", err);
+      alert("保存失败，请重试");
     } finally {
       setIsSaving(false);
     }
@@ -147,34 +139,18 @@ const Index = () => {
   // 重新录音
   const handleReRecord = () => {
     setHasRecorded(false);
-    setTranscript('');
-    setOrganizedText('');
+    setTranscript("");
+    setOrganizedText("");
     setExtractedPeople([]);
     setGeneratedTags([]);
     setAddedFriends([]);
     resetRecording();
   };
 
-  // 将人物添加为朋友
-  const handleAddFriend = async (personName) => {
-    try {
-      await createFriend({
-        name: personName,
-        tags: ['新朋友']
-      });
-      setAddedFriends([...addedFriends, personName]);
-      alert(`已添加 ${personName} 为朋友`);
-    } catch (err) {
-      console.error('添加朋友失败:', err);
-      alert('添加朋友失败，请重试');
-    }
-  };
-
   // 文本输入保存（支持多人物拆分）
   const handleTextSave = async (text) => {
     setIsSaving(true);
     try {
-      // 并行提取人物和生成标签
       const [people, tags] = await Promise.all([
         extractPeople(text),
         generateTags(text)
@@ -184,10 +160,9 @@ const Index = () => {
         transcript: text,
         summary: `文本记录：${text.slice(0, 50)}...`,
         events: [],
-        tags: tags.length > 0 ? tags : ['未分类']
+        tags: tags.length > 0 ? tags : ["未分类"]
       };
 
-      // 根据人物数量决定保存方式
       if (people.length === 0) {
         await createRecord({ ...baseRecord, people: [] });
       } else if (people.length === 1) {
@@ -201,9 +176,9 @@ const Index = () => {
         }
       }
 
-      alert(people.length > 1 ? `已保存 ${people.length} 条记录` : '保存成功！');
+      alert(people.length > 1 ? `已保存 ${people.length} 条记录` : "保存成功！");
     } catch (err) {
-      console.error('保存失败:', err);
+      console.error("保存失败:", err);
       throw err;
     } finally {
       setIsSaving(false);
@@ -214,189 +189,230 @@ const Index = () => {
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // 将人物添加为朋友
+  const handleAddFriend = async (personName) => {
+    try {
+      const { createFriend } = await import("../services/friends");
+      await createFriend({
+        name: personName,
+        tags: ["新朋友"]
+      });
+      setAddedFriends([...addedFriends, personName]);
+      alert(`已添加 ${personName} 为朋友`);
+    } catch (err) {
+      console.error("添加朋友失败:", err);
+      alert("添加朋友失败，请重试");
+    }
   };
 
   return (
-    <div className="min-h-screen bg-background-custom">
-      <div className="container mx-auto px-4 py-8 pb-24">
-        {/* 标题 */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Nice to meet you
-          </h1>
-          <p className="text-gray-600">记录你的社交互动</p>
+    <div className="min-h-screen bg-warm-cream px-5 pt-8 pb-24 relative overflow-hidden">
+      {/* 装饰元素 */}
+      <CloudDeco className="absolute top-10 right-5 opacity-60" />
+      <StarDeco className="absolute top-32 left-8 opacity-60" />
+      <HeartDeco className="absolute bottom-40 right-10 opacity-60" />
+
+      {/* 顶部标题 */}
+      <div className="text-center mb-8">
+        <h1 className="text-2xl text-warm-purple mb-2 tracking-wide">
+          Nice to meet you
+        </h1>
+        <p className="text-sm text-gray-500 tracking-wide">
+          记录你的社交互动
+        </p>
+      </div>
+
+      {/* 错误提示 */}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error === "Permission denied"
+            ? "请允许麦克风权限"
+            : `录音失败: ${error}`}
+        </div>
+      )}
+
+      {/* 主录音区域 */}
+      <div className="bg-white rounded-3xl p-6 mb-6 shadow-lg shadow-warm-purple/10 relative">
+        {/* 录音按钮 */}
+        <div className="flex flex-col items-center mb-6">
+          <RecordButton
+            isRecording={isRecording}
+            recordingTime={recordingTime}
+            onStart={handleStartRecording}
+            onStop={handleStopRecording}
+          />
+          <span className="text-sm text-gray-500 mt-3 tracking-wide">
+            {isRecording
+              ? "录音中..."
+              : hasRecorded
+              ? "点击重新录音"
+              : "点击开始录音"}
+          </span>
         </div>
 
-        {/* 错误提示 */}
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error === 'Permission denied' ? '请允许麦克风权限' : `录音失败: ${error}`}
-          </div>
-        )}
+        {/* 其他输入方式 */}
+        <div className="flex gap-3">
+          <motion.button
+            className="flex-1 bg-warm-pink/30 hover:bg-warm-pink/50 rounded-2xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-300"
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowImageUpload(true)}
+          >
+            <ImageIcon className="w-5 h-5 text-warm-purple" />
+            <span className="text-sm text-warm-purple">上传图片</span>
+          </motion.button>
+          <motion.button
+            className="flex-1 bg-warm-yellow/30 hover:bg-warm-yellow/50 rounded-2xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-300"
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowTextInput(true)}
+          >
+            <FileText className="w-5 h-5 text-warm-purple" />
+            <span className="text-sm text-warm-purple">文本输入</span>
+          </motion.button>
+        </div>
 
-        {/* 主录音区域 */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-          <div className="text-center">
-            <RecordButton
-              isRecording={isRecording}
-              recordingTime={recordingTime}
-              onStart={handleStartRecording}
-              onStop={handleStopRecording}
-            />
-
-            {/* 录音中显示计时器 */}
-            {isRecording && (
-              <div className="mt-4">
-                <div className="text-2xl font-mono text-red-500">
-                  {formatTime(recordingTime)}
-                </div>
-                <p className="text-sm text-gray-500 mt-1">最长录制1分钟</p>
+        {/* 录音结果显示 */}
+        <AnimatePresence>
+          {hasRecorded && audioUrl && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-6 overflow-hidden"
+            >
+              {/* 播放器 */}
+              <div className="bg-warm-cream rounded-2xl p-4 mb-4">
+                <audio controls src={audioUrl} className="w-full" />
               </div>
-            )}
 
-            {/* 录音完成后显示播放和操作按钮 */}
-            {!isRecording && audioUrl && (
-              <div className="mt-4 space-y-4">
-                {/* 播放器 */}
-                <div className="bg-gray-100 rounded-lg p-4">
-                  <audio controls src={audioUrl} className="w-full" />
-                </div>
-
-                {/* 转写结果显示 */}
-                {transcript && (
-                  <div className="space-y-3">
-                    {/* 原始转写 */}
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-left">
-                      <p className="text-sm text-gray-600 mb-1">原始转写：</p>
-                      <p className="text-gray-700">{transcript}</p>
-                    </div>
-
-                    {/* 整理后的描述 */}
-                    {organizedText && organizedText !== transcript && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-sm font-medium text-blue-700">整理后：</span>
-                        </div>
-                        <p className="text-gray-800 whitespace-pre-wrap">{organizedText}</p>
-                      </div>
-                    )}
-
-                    {/* 人物和标签 */}
-                    {(extractedPeople.length > 0 || generatedTags.length > 0) && (
-                      <div className="bg-white border border-gray-200 rounded-lg p-4 text-left">
-                        {/* 人物标签 */}
-                        {extractedPeople.length > 0 && (
-                          <div className="mb-3">
-                            <p className="text-sm text-gray-600 mb-1">识别到的人物：</p>
-                            <div className="flex flex-wrap gap-2">
-                              {extractedPeople.map((person, idx) => (
-                                <div key={idx} className="flex items-center gap-1">
-                                  <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
-                                    {person}
-                                  </span>
-                                  {!addedFriends.includes(person) && (
-                                    <button
-                                      onClick={() => handleAddFriend(person)}
-                                      className="p-1 text-purple-500 hover:text-purple-700"
-                                      title="添加为朋友"
-                                    >
-                                      <UserPlus className="h-4 w-4" />
-                                    </button>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 事件标签 */}
-                        {generatedTags.length > 0 && (
-                          <div>
-                            <p className="text-sm text-gray-600 mb-1">事件标签：</p>
-                            <div className="flex flex-wrap gap-2">
-                              {generatedTags.map((tag, idx) => (
-                                <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+              {/* 转写结果显示 */}
+              {transcript && (
+                <div className="space-y-3">
+                  {/* 原始转写 */}
+                  <div className="bg-gray-50 rounded-2xl p-4">
+                    <p className="text-sm text-gray-600 mb-2">原始转写：</p>
+                    <p className="text-gray-700">{transcript}</p>
                   </div>
-                )}
 
+                  {/* 整理后的描述 */}
+                  {organizedText && organizedText !== transcript && (
+                    <div className="bg-warm-purpleBg rounded-2xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium text-warm-purple">整理后：</span>
+                      </div>
+                      <p className="text-gray-800 whitespace-pre-wrap">
+                        {organizedText}
+                      </p>
+                    </div>
+                  )}
 
-                {/* 操作按钮 */}
-                <div className="flex justify-center gap-3">
-                  <button
-                    onClick={handleReRecord}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                    disabled={isSaving}
-                  >
-                    重新录音
-                  </button>
+                  {/* 人物和标签 */}
+                  {(extractedPeople.length > 0 || generatedTags.length > 0) && (
+                    <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                      {/* 人物标签 */}
+                      {extractedPeople.length > 0 && (
+                        <div className="mb-3">
+                          <p className="text-sm text-gray-600 mb-2">识别到的人物：</p>
+                          <div className="flex flex-wrap gap-2">
+                            {extractedPeople.map((person, idx) => (
+                              <div key={idx} className="flex items-center gap-1">
+                                <span className="px-3 py-1 bg-warm-purpleBg text-warm-purple rounded-full text-sm">
+                                  {person}
+                                </span>
+                                {!addedFriends.includes(person) && (
+                                  <button
+                                    onClick={() => handleAddFriend(person)}
+                                    className="p-1 text-warm-purple hover:text-warm-purpleLight"
+                                    title="添加为朋友"
+                                  >
+                                    <Tag className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                  {!transcript ? (
-                    <button
-                      onClick={handleTranscribe}
-                      disabled={isTranscribing}
-                      className="px-4 py-2 bg-[#897dbf] text-white rounded-lg hover:bg-[#6b5aa3] disabled:opacity-50"
-                    >
-                      {isTranscribing ? '转写中...' : 'AI转写'}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving}
-                      className="px-4 py-2 bg-[#fcd753] text-gray-800 rounded-lg hover:bg-[#e6c24a] disabled:opacity-50"
-                    >
-                      {isSaving ? '保存中...' : '保存'}
-                    </button>
+                      {/* 事件标签 */}
+                      {generatedTags.length > 0 && (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-2">事件标签：</p>
+                          <div className="flex flex-wrap gap-2">
+                            {generatedTags.map((tag, idx) => (
+                              <span
+                                key={idx}
+                                className="px-3 py-1 bg-warm-yellow/30 text-warm-purple rounded-full text-sm"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
+              )}
+
+              {/* 操作按钮 */}
+              <div className="flex justify-center gap-3 mt-4">
+                <motion.button
+                  onClick={handleReRecord}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300"
+                  whileTap={{ scale: 0.98 }}
+                  disabled={isSaving}
+                >
+                  重新录音
+                </motion.button>
+
+                {!transcript ? (
+                  <motion.button
+                    onClick={handleTranscribe}
+                    disabled={isTranscribing}
+                    className="px-4 py-2 bg-warm-purple text-white rounded-xl hover:bg-warm-purpleLight disabled:opacity-50"
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {isTranscribing ? "转写中..." : "AI转写"}
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-warm-yellow text-gray-800 rounded-xl hover:bg-warm-yellowLight disabled:opacity-50"
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {isSaving ? "保存中..." : "保存"}
+                  </motion.button>
+                )}
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* 功能按钮 */}
-        <div className="flex justify-center gap-4 mb-8">
-          <button
-            onClick={() => setShowImageUpload(true)}
-            className="flex items-center gap-2 bg-white rounded-lg px-4 py-2 shadow-md hover:shadow-lg transition-shadow"
-          >
-            <Image className="h-5 w-5 text-[#897dbf]" />
-            <span className="text-gray-700">上传图片</span>
-          </button>
-          
-          <button
-            onClick={() => setShowTextInput(true)}
-            className="flex items-center gap-2 bg-white rounded-lg px-4 py-2 shadow-md hover:shadow-lg transition-shadow"
-          >
-            <Edit3 className="h-5 w-5 text-[#897dbf]" />
-            <span className="text-gray-700">文本输入</span>
-          </button>
-        </div>
-
-        {/* 最近记录 */}
-        <RecentRecords />
-
-        {/* 图片上传弹窗 */}
-        {showImageUpload && (
-          <ImageUpload onClose={() => setShowImageUpload(false)} />
-        )}
-
-        {/* 文本输入弹窗 */}
-        {showTextInput && (
-          <TextInput
-            onClose={() => setShowTextInput(false)}
-            onSave={handleTextSave}
-          />
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* 最近记录 */}
+      <div className="mb-6">
+        <h3 className="text-lg text-warm-purple mb-4 px-2 tracking-wide">
+          最近记录
+        </h3>
+        <RecentRecords />
+      </div>
+
+      {/* 图片上传弹窗 */}
+      {showImageUpload && (
+        <ImageUpload onClose={() => setShowImageUpload(false)} />
+      )}
+
+      {/* 文本输入弹窗 */}
+      {showTextInput && (
+        <TextInput
+          onClose={() => setShowTextInput(false)}
+          onSave={handleTextSave}
+        />
+      )}
     </div>
   );
 };

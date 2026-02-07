@@ -18,6 +18,17 @@ module.exports = {
     },
     extend: {
       colors: {
+        // v2 配色方案
+        warm: {
+          purple: '#9B8BDA',
+          purpleLight: '#C4BDE8',
+          purpleBg: '#F5F3FF',
+          yellow: '#FFE082',
+          yellowLight: '#FFF3CD',
+          cream: '#FFF8E1',
+          pink: '#FFD7D7',
+          pinkLight: '#FFE4E4',
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -66,10 +77,20 @@ module.exports = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        pulse: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.5' },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        float: "float 3s ease-in-out infinite",
+        pulse: "pulse 2s ease-in-out infinite",
       },
     },
   },
