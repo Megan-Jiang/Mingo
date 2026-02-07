@@ -53,7 +53,12 @@ const Index = () => {
       setGeneratedTags(result.tags);
     } catch (err) {
       console.error('转写失败:', err);
-      alert(`转写失败: ${err.message}，请检查 API 配置`);
+      // 如果是配置错误，显示更详细的提示
+      if (err.message.includes('未配置')) {
+        alert(err.message);
+      } else {
+        alert(`转写失败: ${err.message}，请检查 API 配置`);
+      }
     } finally {
       setIsTranscribing(false);
     }

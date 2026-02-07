@@ -9,19 +9,46 @@ import OpenAI from 'openai';
  * - 标签生成（使用 StepFun）
  */
 
-// 初始化 OpenAI 客户端（用于 Whisper 语音转写）
-const whisperClient = new OpenAI({
-  apiKey: import.meta.env.VITE_WHISPER_API_KEY,
-  baseUrl: import.meta.env.VITE_WHISPER_BASE_URL || 'https://api.openai.com/v1',
-  dangerouslyAllowBrowser: true
-});
+// 从环境变量获取配置
+const whisperApiKey = import.meta.env.VITE_WHISPER_API_KEY;
+const whisperBaseUrl = import.meta.env.VITE_WHISPER_BASE_URL;
+const aiApiKey = import.meta.env.VITE_AI_API_KEY;
+const aiBaseUrl = import.meta.env.VITE_AI_BASE_URL || 'https://api.stepfun.com/v1';
+const aiModel = import.meta.env.VITE_AI_MODEL || 'step-1-8k';
+const whisperModel = import.meta.env.VITE_WHISPER_MODEL || 'whisper-1';
 
-// 初始化 StepFun 客户端（用于文本分析）
-const aiClient = new OpenAI({
-  apiKey: import.meta.env.VITE_AI_API_KEY,
-  baseUrl: import.meta.env.VITE_AI_BASE_URL || 'https://api.stepfun.com/v1',
+// 初始化 OpenAI 客户端（用于 Whisper 语音转写）- 仅当有 API Key 时
+const whisperClient = whisperApiKey ? new OpenAI({
+  apiKey: whisperApiKey,
+  baseUrl: whisperBaseUrl,
   dangerouslyAllowBrowser: true
-});
+}) : null;
+
+// 初始化 StepFun 客户端（用于文本分析）- 仅当有 API Key 时
+const aiClient = aiApiKey ? new OpenAI({
+  apiKey: aiApiKey,
+  baseUrl: aiBaseUrl,
+  dangerouslyAllowBrowser: true
+}) : null;
+
+/**
+ * 检查 AI 服务是否已配置
+ * @returns {Object} 配置状态
+ */
+export function getAIStatus() {
+  return {
+    whisperConfigured: !!whisperApiKey,
+    stepFunConfigured: !!aiApiKey,
+    configured: !!(whisperApiKey && aiApiKey)
+  };
+}
+
+/**
+ * 抛出配置错误
+ */
+function throwNotConfigured(service) {
+  throw new Error(`${service} 未配置，请先在 .env 文件中设置 VITE_${service}_API_KEY`);
+}
 
 /**
  * 语音转写 - 使用 Whisper 将音频转为文字
@@ -29,11 +56,15 @@ const aiClient = new OpenAI({
  * @returns {Promise<string>} 转写的文字
  */
 export async function transcribeAudio(audioBlob) {
+  if (!whisperClient) {
+    throwNotConfigured('WHISPER');
+  }
+
   try {
     const file = new File([audioBlob], 'recording.webm', { type: audioBlob.type || 'audio/webm' });
 
     const response = await whisperClient.audio.transcriptions.create({
-      model: import.meta.env.VITE_WHISPER_MODEL || 'whisper-1',
+      model: whisperModel,
       file: file,
       language: 'zh'
     });
@@ -55,9 +86,13 @@ export async function extractPeople(text) {
     return [];
   }
 
+  if (!aiClient) {
+    throwNotConfigured('AI');
+  }
+
   try {
     const completion = await aiClient.chat.completions.create({
-      model: import.meta.env.VITE_AI_MODEL || 'step-1-8k',
+      model: aiModel,
       messages: [
         {
           role: 'system',
@@ -96,9 +131,13 @@ export async function generateTags(text) {
     return ['未分类'];
   }
 
+  if (!aiClient) {
+    throwNotConfigured('AI');
+  }
+
   try {
     const completion = await aiClient.chat.completions.create({
-      model: import.meta.env.VITE_AI_MODEL || 'step-1-8k',
+      model: aiModel,
       messages: [
         {
           role: 'system',
@@ -139,9 +178,13 @@ export async function generateSummary(text) {
     return '';
   }
 
+  if (!aiClient) {
+    throwNotConfigured('AI');
+  }
+
   try {
     const completion = await aiClient.chat.completions.create({
-      model: import.meta.env.VITE_AI_MODEL || 'step-1-8k',
+      model: aiModel,
       messages: [
         {
           role: 'system',
