@@ -3,6 +3,24 @@ import { Clock, Users, Tag, Play } from 'lucide-react';
 import { getRecords } from '../services/records';
 
 /**
+ * 格式化日期时间
+ * @param {string} createdAt - ISO 日期字符串
+ * @returns {{ date: string, time: string }}
+ */
+const formatDateTime = (createdAt) => {
+  if (!createdAt) {
+    return { date: '-', time: '-' };
+  }
+  const date = new Date(createdAt);
+  const dateStr = date.toLocaleDateString('zh-CN');
+  const timeStr = date.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  return { date: dateStr, time: timeStr };
+};
+
+/**
  * 最近记录组件
  * @param {Object} props
  * @param {Array} props.records - 记录数组（可选，不传则从接口加载）
@@ -43,14 +61,14 @@ const RecentRecords = ({ records: propRecords }) => {
   ];
 
   // 如果传入了 records prop，直接使用
-  // 否则从接口加载（需要 Supabase 配置好后才能工作）
+  // 否则从接口加载
   useEffect(() => {
     if (propRecords) {
       setRecords(propRecords);
       return;
     }
 
-    // 尝试从接口加载数据
+    // 从接口加载数据
     const fetchRecords = async () => {
       try {
         const data = await getRecords({ limit: 10 });
@@ -59,7 +77,6 @@ const RecentRecords = ({ records: propRecords }) => {
         }
       } catch (err) {
         console.warn('加载记录失败，使用默认数据:', err);
-        // 接口失败时使用默认数据
       } finally {
         setLoading(false);
       }
@@ -68,6 +85,7 @@ const RecentRecords = ({ records: propRecords }) => {
     fetchRecords();
   }, [propRecords]);
 
+  // 确定显示的记录列表
   const displayRecords = records.length > 0 ? records : defaultRecords;
 
   return (
@@ -77,50 +95,67 @@ const RecentRecords = ({ records: propRecords }) => {
         最近记录
       </h2>
 
-      <div className="space-y-4">
-        {displayRecords.map((record) => (
-          <div
-            key={record.id}
-            className="border-l-4 border-[#fcd753] pl-4 py-3 hover:bg-[#e7e3b3] rounded-r-lg transition-colors"
-          >
-            <div className="flex items-start justify-between mb-2">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Users className="h-4 w-4 text-[#897dbf]" />
-                <span>{record.people?.join(', ') || '未知'}</span>
-              </div>
-              <div className="text-sm text-gray-500">
-                {record.date} {record.time}
-              </div>
-            </div>
+      {loading && (
+        <div className="text-center py-8">
+          <div className="animate-spin h-6 w-6 border-2 border-[#897dbf] border-t-transparent rounded-full mx-auto"></div>
+        </div>
+      )}
 
-            {/* 录音播放按钮 */}
-            {record.audio_url && (
-              <div className="mb-2">
-                <button className="flex items-center gap-2 text-[#897dbf] hover:text-[#6b5aa3] text-sm">
-                  <Play className="h-4 w-4" />
-                  播放录音
-                </button>
-              </div>
-            )}
+      {!loading && (
+        <div className="space-y-4">
+          {displayRecords.map((record) => {
+            const { date: dateStr, time: timeStr } = formatDateTime(record.created_at || record.date);
+            const summary = record.summary || record.transcript || '暂无摘要';
+            const people = record.people || [];
+            const tags = record.tags || [];
 
-            <p className="text-gray-700 mb-2">{record.summary || '暂无摘要'}</p>
+            return (
+              <div
+                key={record.id}
+                className="border-l-4 border-[#fcd753] pl-4 py-3 hover:bg-[#e7e3b3] rounded-r-lg transition-colors"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Users className="h-4 w-4 text-[#897dbf]" />
+                    <span>{people.length > 0 ? people.join(', ') : '未知'}</span>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {dateStr} {timeStr}
+                  </div>
+                </div>
 
-            <div className="flex items-center gap-2">
-              <Tag className="h-4 w-4 text-gray-400" />
-              <div className="flex gap-1">
-                {(record.tags || []).map((tag, index) => (
-                  <span
-                    key={index}
-                    className="px-2 py-1 bg-[#d6b7d6] text-[#897dbf] text-xs rounded-full"
-                  >
-                    {tag}
-                  </span>
-                ))}
+                {/* 录音播放按钮 */}
+                {(record.audio_url || record.audioUrl) && (
+                  <div className="mb-2">
+                    <button className="flex items-center gap-2 text-[#897dbf] hover:text-[#6b5aa3] text-sm">
+                      <Play className="h-4 w-4" />
+                      播放录音
+                    </button>
+                  </div>
+                )}
+
+                <p className="text-gray-700 mb-2">{summary}</p>
+
+                {tags.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-gray-400" />
+                    <div className="flex gap-1">
+                      {tags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="px-2 py-1 bg-[#d6b7d6] text-[#897dbf] text-xs rounded-full"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {displayRecords.length === 0 && (
         <div className="text-center py-8 text-gray-500">

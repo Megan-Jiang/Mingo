@@ -1,63 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Plus, Search } from 'lucide-react';
 import PersonCard from '../components/PersonCard';
 import PersonDetail from '../components/PersonDetail';
+import { getFriends } from '../services/friends';
 
 const People = () => {
-  const [selectedPerson, setSelectedPerson] = useState(null);
+  const [people, setPeople] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPerson, setSelectedPerson] = useState(null);
+  const [error, setError] = useState(null);
 
-  // 模拟朋友数据
-  const people = [
-    {
-      id: 1,
-      name: '小明',
-      alias: '工作伙伴',
-      tags: ['工作', '朋友', '同事'],
-      lastInteraction: '2024-01-15',
-      festivals: [
-        { name: '生日', date: '1990-05-20' },
-        { name: '结婚纪念日', date: '2020-08-15' }
-      ],
-      notes: '最近工作压力比较大，需要多关心'
-    },
-    {
-      id: 2,
-      name: '妈妈',
-      alias: '母亲',
-      tags: ['家庭', '亲人'],
-      lastInteraction: '2024-01-14',
-      festivals: [
-        { name: '生日', date: '1965-03-12' }
-      ],
-      notes: '身体很好，不用担心'
-    },
-    {
-      id: 3,
-      name: '小红',
-      alias: '闺蜜',
-      tags: ['朋友', '闺蜜', '同学'],
-      lastInteraction: '2024-01-10',
-      festivals: [
-        { name: '生日', date: '1992-11-08' }
-      ],
-      notes: '最近准备换工作，心情不错'
-    },
-    {
-      id: 4,
-      name: '老王',
-      alias: '邻居',
-      tags: ['邻居', '朋友'],
-      lastInteraction: '2024-01-08',
-      festivals: [],
-      notes: '经常一起下棋'
-    }
-  ];
+  // 从 Supabase 加载朋友数据
+  useEffect(() => {
+    const fetchFriends = async () => {
+      try {
+        setLoading(true);
+        const data = await getFriends();
+        // 字段映射：remark → alias, important_days → festivals
+        const mappedData = data.map(friend => ({
+          ...friend,
+          alias: friend.remark,
+          festivals: friend.important_days || [],
+          lastInteraction: friend.created_at?.split('T')[0] || new Date().toISOString().split('T')[0]
+        }));
+        setPeople(mappedData);
+        setError(null);
+      } catch (err) {
+        console.error('加载朋友列表失败:', err);
+        setError('加载失败，请检查网络连接');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const filteredPeople = people.filter(person => 
-    person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    fetchFriends();
+  }, []);
+
+  // 过滤搜索结果
+  const filteredPeople = people.filter(person =>
+    person.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     person.alias?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    person.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+    (person.tags || []).some(tag => tag?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   if (selectedPerson) {
@@ -90,34 +74,55 @@ const People = () => {
           />
         </div>
 
-        {/* 朋友列表 */}
-        <div className="space-y-4">
-          {filteredPeople.map((person) => (
-            <PersonCard 
-              key={person.id} 
-              person={person} 
-              onClick={setSelectedPerson}
-            />
-          ))}
-        </div>
-
-        {/* 空状态 */}
-        {filteredPeople.length === 0 && (
+        {/* 加载状态 */}
+        {loading && (
           <div className="text-center py-12">
-            <Users className="h-16 w-16 mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500">
-              {searchTerm ? '没有找到匹配的朋友' : '还没有添加朋友'}
-            </p>
-            <p className="text-sm text-gray-400 mt-2">
-              {searchTerm ? '试试其他关键词' : '开始记录社交互动来添加朋友吧'}
-            </p>
+            <div className="animate-spin h-8 w-8 border-4 border-[#897dbf] border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-gray-500">加载中...</p>
           </div>
         )}
 
-        {/* 统计信息 */}
-        <div className="mt-8 text-center text-sm text-gray-500">
-          共 {people.length} 位朋友
-        </div>
+        {/* 错误提示 */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+
+        {/* 朋友列表 */}
+        {!loading && !error && (
+          <>
+            <div className="space-y-4">
+              {filteredPeople.map((person) => (
+                <PersonCard
+                  key={person.id}
+                  person={person}
+                  onClick={setSelectedPerson}
+                />
+              ))}
+            </div>
+
+            {/* 空状态 */}
+            {filteredPeople.length === 0 && (
+              <div className="text-center py-12">
+                <Users className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500">
+                  {searchTerm ? '没有找到匹配的朋友' : '还没有添加朋友'}
+                </p>
+                <p className="text-sm text-gray-400 mt-2">
+                  {searchTerm ? '试试其他关键词' : '开始记录社交互动来添加朋友吧'}
+                </p>
+              </div>
+            )}
+
+            {/* 统计信息 */}
+            {people.length > 0 && (
+              <div className="mt-8 text-center text-sm text-gray-500">
+                共 {people.length} 位朋友
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
