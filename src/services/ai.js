@@ -1,12 +1,9 @@
-import OpenAI from 'openai';
-
 /**
- * AI 服务层
+ * AI 服务层 - 使用 StepFun API
  *
  * 核心功能：
  * - 语音转写（使用 StepFun step-asr）
- * - 人物提取（使用 StepFun step-1-8k）
- * - 标签生成（使用 StepFun step-1-8k）
+ * - 文本分析（使用 StepFun step-1-8k）
  */
 
 // 从环境变量获取配置
@@ -16,13 +13,6 @@ const aiApiKey = import.meta.env.VITE_AI_API_KEY;
 const aiBaseUrl = import.meta.env.VITE_AI_BASE_URL || 'https://api.stepfun.com/v1';
 const aiModel = import.meta.env.VITE_AI_MODEL || 'step-1-8k';
 const whisperModel = import.meta.env.VITE_WHISPER_MODEL || 'step-asr';
-
-// 初始化 StepFun 客户端（用于文本分析）
-const aiClient = aiApiKey ? new OpenAI({
-  apiKey: aiApiKey,
-  baseUrl: aiBaseUrl,
-  dangerouslyAllowBrowser: true
-}) : null;
 
 /**
  * 检查 AI 服务是否已配置
@@ -41,6 +31,37 @@ export function getAIStatus() {
  */
 function throwNotConfigured(service) {
   throw new Error(`${service} 未配置，请先在 .env 文件中设置 VITE_${service}_API_KEY`);
+}
+
+/**
+ * 调用 StepFun Chat API
+ */
+async function callStepFunChat(messages, temperature = 0.3) {
+  if (!aiApiKey) {
+    throwNotConfigured('AI');
+  }
+
+  const response = await fetch(`${aiBaseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${aiApiKey}`
+    },
+    body: JSON.stringify({
+      model: aiModel,
+      messages: messages,
+      temperature: temperature
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('StepFun API 错误:', errorText);
+    throw new Error(`API 返回错误 ${response.status}: ${errorText}`);
+  }
+
+  const result = await response.json();
+  return result.choices[0]?.message?.content || '';
 }
 
 /**
@@ -65,8 +86,7 @@ export async function transcribeAudio(audioBlob) {
     console.log('发起语音转写请求...', {
       url: `${whisperBaseUrl}/audio/transcriptions`,
       model: whisperModel,
-      fileSize: file.size,
-      fileType: file.type
+      fileSize: file.size
     });
 
     const response = await fetch(`${whisperBaseUrl}/audio/transcriptions`, {
@@ -89,9 +109,6 @@ export async function transcribeAudio(audioBlob) {
     return result.text;
   } catch (error) {
     console.error('语音转写失败:', error);
-    if (error.message.includes('API 返回错误')) {
-      throw error;
-    }
     throw new Error(`语音转写失败: ${error.message}`);
   }
 }
@@ -106,39 +123,24 @@ export async function extractPeople(text) {
     return [];
   }
 
-  if (!aiClient) {
-    throwNotConfigured('AI');
-  }
-
-  try {
-    const completion = await aiClient.chat.completions.create({
-      model: aiModel,
-      messages: [
-        {
-          role: 'system',
-          content: `你是一个社交记录助手，负责从文本中提取涉及的人物名称。
+  const result = await callStepFunChat([
+    {
+      role: 'system',
+      content: `你是一个社交记录助手，负责从文本中提取涉及的人物姓名。
 请从以下转写内容中提取所有提及的人物姓名。
 规则：
 1. 只返回人物姓名，用中文逗号分隔
 2. 不要返回称谓（如"朋友"、"同事"）
 3. 如果没有明确人物，返回空字符串
 4. 只返回纯文本，不要JSON格式`
-        },
-        {
-          role: 'user',
-          content: text
-        }
-      ],
-      temperature: 0.3
-    });
+    },
+    {
+      role: 'user',
+      content: text
+    }
+  ], 0.3);
 
-    const result = completion.choices[0]?.message?.content || '';
-    // 解析结果，过滤空字符串
-    return result.split(/[,，]/).map(s => s.trim()).filter(s => s.length > 0);
-  } catch (error) {
-    console.error('人物提取失败:', error);
-    return [];
-  }
+  return result.split(/[,，]/).map(s => s.trim()).filter(s => s.length > 0);
 }
 
 /**
@@ -151,17 +153,10 @@ export async function generateTags(text) {
     return ['未分类'];
   }
 
-  if (!aiClient) {
-    throwNotConfigured('AI');
-  }
-
-  try {
-    const completion = await aiClient.chat.completions.create({
-      model: aiModel,
-      messages: [
-        {
-          role: 'system',
-          content: `你是一个社交记录助手，负责为社交互动生成标签。
+  const result = await callStepFunChat([
+    {
+      role: 'system',
+      content: `你是一个社交记录助手，负责为社交互动生成标签。
 请为以下转写内容生成3-5个简洁的标签。
 规则：
 1. 标签要简洁（1-3个字）
@@ -169,23 +164,15 @@ export async function generateTags(text) {
 3. 只返回标签，用中文逗号分隔
 4. 不要返回纯数字或无意义的词
 5. 只返回纯文本，不要JSON格式`
-        },
-        {
-          role: 'user',
-          content: text
-        }
-      ],
-      temperature: 0.5
-    });
+    },
+    {
+      role: 'user',
+      content: text
+    }
+  ], 0.5);
 
-    const result = completion.choices[0]?.message?.content || '';
-    // 解析结果
-    const tags = result.split(/[,，]/).map(s => s.trim()).filter(s => s.length > 0);
-    return tags.length > 0 ? tags : ['未分类'];
-  } catch (error) {
-    console.error('标签生成失败:', error);
-    return ['未分类'];
-  }
+  const tags = result.split(/[,，]/).map(s => s.trim()).filter(s => s.length > 0);
+  return tags.length > 0 ? tags : ['未分类'];
 }
 
 /**
@@ -198,33 +185,18 @@ export async function generateSummary(text) {
     return '';
   }
 
-  if (!aiClient) {
-    throwNotConfigured('AI');
-  }
-
-  try {
-    const completion = await aiClient.chat.completions.create({
-      model: aiModel,
-      messages: [
-        {
-          role: 'system',
-          content: `你是一个社交记录助手，负责为社交互动生成简短摘要。
+  return await callStepFunChat([
+    {
+      role: 'system',
+      content: `你是一个社交记录助手，负责为社交互动生成简短摘要。
 请用一句话概括以下转写内容（不超过50字）。
 只返回摘要文本，不要其他内容。`
-        },
-        {
-          role: 'user',
-          content: text
-        }
-      ],
-      temperature: 0.5
-    });
-
-    return completion.choices[0]?.message?.content || '';
-  } catch (error) {
-    console.error('摘要生成失败:', error);
-    return '';
-  }
+    },
+    {
+      role: 'user',
+      content: text
+    }
+  ], 0.5);
 }
 
 /**
@@ -238,17 +210,10 @@ export async function organizeTranscript(text, existingPeople = []) {
     return { organizedText: '', people: [], tags: [] };
   }
 
-  if (!aiClient) {
-    throwNotConfigured('AI');
-  }
-
-  try {
-    const completion = await aiClient.chat.completions.create({
-      model: aiModel,
-      messages: [
-        {
-          role: 'system',
-          content: `你是一个社交记录助手，负责整理社交互动的转写内容。
+  const content = await callStepFunChat([
+    {
+      role: 'system',
+      content: `你是一个社交记录助手，负责整理社交互动的转写内容。
 
 请对提供的转写内容进行整理：
 
@@ -266,42 +231,29 @@ export async function organizeTranscript(text, existingPeople = []) {
 }
 
 只返回JSON，不要其他内容。`
-        },
-        {
-          role: 'user',
-          content: `原始转写：${text}`
-        }
-      ],
-      temperature: 0.3
-    });
-
-    const content = completion.choices[0]?.message?.content || '';
-    console.log('整理响应:', content);
-
-    // 解析 JSON
-    let result;
-    try {
-      result = JSON.parse(content);
-    } catch (parseError) {
-      console.error('JSON解析失败，返回原文:', parseError);
-      // 解析失败时返回原文
-      return {
-        organizedText: text,
-        people: existingPeople,
-        tags: []
-      };
+    },
+    {
+      role: 'user',
+      content: `原始转写：${text}`
     }
+  ], 0.3);
 
-    return {
-      organizedText: result.organizedText || text,
-      people: result.people || existingPeople,
-      tags: result.tags || []
-    };
-  } catch (error) {
-    console.error('整理失败:', error);
-    // 整理失败时返回原文
+  console.log('整理响应:', content);
+
+  // 解析 JSON
+  let result;
+  try {
+    result = JSON.parse(content);
+  } catch (parseError) {
+    console.error('JSON解析失败，返回原文:', parseError);
     return { organizedText: text, people: existingPeople, tags: [] };
   }
+
+  return {
+    organizedText: result.organizedText || text,
+    people: result.people || existingPeople,
+    tags: result.tags || []
+  };
 }
 
 /**
