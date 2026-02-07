@@ -4,27 +4,20 @@ import OpenAI from 'openai';
  * AI 服务层
  *
  * 核心功能：
- * - 语音转写（使用 Whisper）
- * - 人物提取（使用 StepFun）
- * - 标签生成（使用 StepFun）
+ * - 语音转写（使用 StepFun step-asr）
+ * - 人物提取（使用 StepFun step-1-8k）
+ * - 标签生成（使用 StepFun step-1-8k）
  */
 
 // 从环境变量获取配置
 const whisperApiKey = import.meta.env.VITE_WHISPER_API_KEY;
-const whisperBaseUrl = import.meta.env.VITE_WHISPER_BASE_URL;
+const whisperBaseUrl = import.meta.env.VITE_WHISPER_BASE_URL || 'https://api.stepfun.com/v1';
 const aiApiKey = import.meta.env.VITE_AI_API_KEY;
 const aiBaseUrl = import.meta.env.VITE_AI_BASE_URL || 'https://api.stepfun.com/v1';
 const aiModel = import.meta.env.VITE_AI_MODEL || 'step-1-8k';
-const whisperModel = import.meta.env.VITE_WHISPER_MODEL || 'whisper-1';
+const whisperModel = import.meta.env.VITE_WHISPER_MODEL || 'step-asr';
 
-// 初始化 OpenAI 客户端（用于 Whisper 语音转写）- 仅当有 API Key 时
-const whisperClient = whisperApiKey ? new OpenAI({
-  apiKey: whisperApiKey,
-  baseUrl: whisperBaseUrl,
-  dangerouslyAllowBrowser: true
-}) : null;
-
-// 初始化 StepFun 客户端（用于文本分析）- 仅当有 API Key 时
+// 初始化 StepFun 客户端（用于文本分析）
 const aiClient = aiApiKey ? new OpenAI({
   apiKey: aiApiKey,
   baseUrl: aiBaseUrl,
@@ -51,27 +44,54 @@ function throwNotConfigured(service) {
 }
 
 /**
- * 语音转写 - 使用 Whisper 将音频转为文字
+ * 语音转写 - 使用 StepFun step-asr
  * @param {Blob} audioBlob - 音频文件
  * @returns {Promise<string>} 转写的文字
  */
 export async function transcribeAudio(audioBlob) {
-  if (!whisperClient) {
+  if (!whisperApiKey) {
     throwNotConfigured('WHISPER');
   }
 
   try {
     const file = new File([audioBlob], 'recording.webm', { type: audioBlob.type || 'audio/webm' });
 
-    const response = await whisperClient.audio.transcriptions.create({
+    // 构建 FormData
+    const formData = new FormData();
+    formData.append('model', whisperModel);
+    formData.append('response_format', 'json');
+    formData.append('file', file);
+
+    console.log('发起语音转写请求...', {
+      url: `${whisperBaseUrl}/audio/transcriptions`,
       model: whisperModel,
-      file: file,
-      language: 'zh'
+      fileSize: file.size,
+      fileType: file.type
     });
 
-    return response.text;
+    const response = await fetch(`${whisperBaseUrl}/audio/transcriptions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${whisperApiKey}`
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API 错误响应:', errorText);
+      throw new Error(`API 返回错误 ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('转写结果:', result);
+
+    return result.text;
   } catch (error) {
     console.error('语音转写失败:', error);
+    if (error.message.includes('API 返回错误')) {
+      throw error;
+    }
     throw new Error(`语音转写失败: ${error.message}`);
   }
 }
