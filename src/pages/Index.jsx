@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
-import { Mic, MicOff, Image, Edit3 } from 'lucide-react';
+import { Mic, MicOff, Image, Edit3, UserPlus } from 'lucide-react';
 import { useRecorder } from '../hooks/useRecorder';
 import { createRecord } from '../services/records';
+import { createFriend } from '../services/friends';
 import { processAudio, extractPeople, generateTags, organizeTranscript } from '../services/ai';
 import RecordButton from '../components/RecordButton';
 import RecentRecords from '../components/RecentRecords';
@@ -28,6 +29,7 @@ const Index = () => {
   const [extractedPeople, setExtractedPeople] = useState([]);
   const [generatedTags, setGeneratedTags] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [addedFriends, setAddedFriends] = useState([]); // 已添加为朋友的人物
 
   const handleStartRecording = useCallback(async () => {
     setHasRecorded(false);
@@ -149,7 +151,23 @@ const Index = () => {
     setOrganizedText('');
     setExtractedPeople([]);
     setGeneratedTags([]);
+    setAddedFriends([]);
     resetRecording();
+  };
+
+  // 将人物添加为朋友
+  const handleAddFriend = async (personName) => {
+    try {
+      await createFriend({
+        name: personName,
+        tags: ['新朋友']
+      });
+      setAddedFriends([...addedFriends, personName]);
+      alert(`已添加 ${personName} 为朋友`);
+    } catch (err) {
+      console.error('添加朋友失败:', err);
+      alert('添加朋友失败，请重试');
+    }
   };
 
   // 文本输入保存（支持多人物拆分）
@@ -273,9 +291,20 @@ const Index = () => {
                             <p className="text-sm text-gray-600 mb-1">识别到的人物：</p>
                             <div className="flex flex-wrap gap-2">
                               {extractedPeople.map((person, idx) => (
-                                <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
-                                  {person}
-                                </span>
+                                <div key={idx} className="flex items-center gap-1">
+                                  <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
+                                    {person}
+                                  </span>
+                                  {!addedFriends.includes(person) && (
+                                    <button
+                                      onClick={() => handleAddFriend(person)}
+                                      className="p-1 text-purple-500 hover:text-purple-700"
+                                      title="添加为朋友"
+                                    >
+                                      <UserPlus className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
                               ))}
                             </div>
                           </div>
