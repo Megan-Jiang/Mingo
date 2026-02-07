@@ -261,25 +261,28 @@ const Profile = () => {
           <div className="text-center py-4 text-gray-500">加载中...</div>
         ) : (
           <>
+            {/* 标签列表 */}
             <div className="flex flex-wrap gap-2 mb-4">
               {personTags.map((tag) => (
-                <div key={tag.id} className="flex items-center gap-1 group">
+                <div key={tag.id} className="flex items-center">
                   <span className="px-3 py-1 bg-[#d6b7d6] text-[#897dbf] rounded-full text-sm">
                     {tag.name}
                   </span>
                   <button
                     onClick={() => handleDeletePersonTag(tag.id)}
-                    className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="px-2 py-1 bg-red-100 text-red-500 rounded-r-full text-sm hover:bg-red-200"
+                    title="删除标签"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ))}
               {personTags.length === 0 && (
-                <p className="text-gray-400 text-sm">暂无标签，点击下方添加</p>
+                <p className="text-gray-400 text-sm">暂无标签</p>
               )}
             </div>
 
+            {/* 添加按钮/输入框 */}
             {showAddPersonInput ? (
               <div className="flex gap-2">
                 <input
@@ -287,18 +290,18 @@ const Profile = () => {
                   value={newPersonTag}
                   onChange={(e) => setNewPersonTag(e.target.value)}
                   placeholder="输入标签名称"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#897dbf]"
+                  className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#897dbf]"
                   onKeyPress={(e) => e.key === 'Enter' && handleAddPersonTag()}
                 />
                 <button
                   onClick={handleAddPersonTag}
-                  className="px-4 py-2 bg-[#897dbf] text-white rounded-lg hover:bg-[#6b5aa3]"
+                  className="px-3 py-1.5 bg-[#897dbf] text-white rounded-lg hover:bg-[#6b5aa3] text-sm"
                 >
-                  添加
+                  确定
                 </button>
                 <button
                   onClick={() => { setShowAddPersonInput(false); setNewPersonTag(''); }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
                 >
                   取消
                 </button>
@@ -306,9 +309,9 @@ const Profile = () => {
             ) : (
               <button
                 onClick={() => setShowAddPersonInput(true)}
-                className="text-[#fcd753] hover:text-[#e6c24a] transition-colors"
+                className="px-3 py-1 bg-[#fcd753] text-white rounded-full text-sm hover:bg-[#e6c24a]"
               >
-                + 添加新标签
+                + 添加标签
               </button>
             )}
           </>
@@ -326,25 +329,28 @@ const Profile = () => {
           <div className="text-center py-4 text-gray-500">加载中...</div>
         ) : (
           <>
+            {/* 标签列表 */}
             <div className="flex flex-wrap gap-2 mb-4">
               {eventTags.map((tag) => (
-                <div key={tag.id} className="flex items-center gap-1 group">
+                <div key={tag.id} className="flex items-center">
                   <span className="px-3 py-1 bg-[#d6b7d6] text-[#897dbf] rounded-full text-sm">
                     {tag.name}
                   </span>
                   <button
                     onClick={() => handleDeleteEventTag(tag.id)}
-                    className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="px-2 py-1 bg-red-100 text-red-500 rounded-r-full text-sm hover:bg-red-200"
+                    title="删除标签"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ))}
               {eventTags.length === 0 && (
-                <p className="text-gray-400 text-sm">暂无标签，点击下方添加</p>
+                <p className="text-gray-400 text-sm">暂无标签</p>
               )}
             </div>
 
+            {/* 添加按钮/输入框 */}
             {showAddEventInput ? (
               <div className="flex gap-2">
                 <input
@@ -352,18 +358,18 @@ const Profile = () => {
                   value={newEventTag}
                   onChange={(e) => setNewEventTag(e.target.value)}
                   placeholder="输入标签名称"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#897dbf]"
+                  className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#897dbf]"
                   onKeyPress={(e) => e.key === 'Enter' && handleAddEventTag()}
                 />
                 <button
                   onClick={handleAddEventTag}
-                  className="px-4 py-2 bg-[#897dbf] text-white rounded-lg hover:bg-[#6b5aa3]"
+                  className="px-3 py-1.5 bg-[#897dbf] text-white rounded-lg hover:bg-[#6b5aa3] text-sm"
                 >
-                  添加
+                  确定
                 </button>
                 <button
                   onClick={() => { setShowAddEventInput(false); setNewEventTag(''); }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
                 >
                   取消
                 </button>
@@ -371,9 +377,9 @@ const Profile = () => {
             ) : (
               <button
                 onClick={() => setShowAddEventInput(true)}
-                className="text-[#fcd753] hover:text-[#e6c24a] transition-colors"
+                className="px-3 py-1 bg-[#fcd753] text-white rounded-full text-sm hover:bg-[#e6c24a]"
               >
-                + 添加新标签
+                + 添加标签
               </button>
             )}
           </>
