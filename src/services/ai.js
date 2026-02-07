@@ -228,13 +228,91 @@ export async function generateSummary(text) {
 }
 
 /**
+ * 整理转写内容 - 去除语气词、整理逻辑、提取人物和标签
+ * @param {string} text - 原始转写文本
+ * @param {string[]} existingPeople - 已识别的人物列表（可选）
+ * @returns {Promise<Object>} 整理结果 { organizedText, people, tags }
+ */
+export async function organizeTranscript(text, existingPeople = []) {
+  if (!text || text.trim().length === 0) {
+    return { organizedText: '', people: [], tags: [] };
+  }
+
+  if (!aiClient) {
+    throwNotConfigured('AI');
+  }
+
+  try {
+    const completion = await aiClient.chat.completions.create({
+      model: aiModel,
+      messages: [
+        {
+          role: 'system',
+          content: `你是一个社交记录助手，负责整理社交互动的转写内容。
+
+请对提供的转写内容进行整理：
+
+1. **去除语气词**：移除嗯、啊、哦、这个、那个、就是、说吧、你说呢等口语词
+2. **整理逻辑**：使内容连贯清晰，去除重复表达
+3. **标注说话人**：如果能明确判断谁在说话，用"(姓名)："标注说话人
+4. **提取人物**：从内容中提取所有涉及的人物
+5. **生成标签**：生成3-5个简洁的事件标签
+
+请直接返回JSON格式结果：
+{
+  "organizedText": "整理后的描述（段落清晰，去除语气词）",
+  "people": ["人物1", "人物2"],
+  "tags": ["标签1", "标签2"]
+}
+
+只返回JSON，不要其他内容。`
+        },
+        {
+          role: 'user',
+          content: `原始转写：${text}`
+        }
+      ],
+      temperature: 0.3
+    });
+
+    const content = completion.choices[0]?.message?.content || '';
+    console.log('整理响应:', content);
+
+    // 解析 JSON
+    let result;
+    try {
+      result = JSON.parse(content);
+    } catch (parseError) {
+      console.error('JSON解析失败，返回原文:', parseError);
+      // 解析失败时返回原文
+      return {
+        organizedText: text,
+        people: existingPeople,
+        tags: []
+      };
+    }
+
+    return {
+      organizedText: result.organizedText || text,
+      people: result.people || existingPeople,
+      tags: result.tags || []
+    };
+  } catch (error) {
+    console.error('整理失败:', error);
+    // 整理失败时返回原文
+    return { organizedText: text, people: existingPeople, tags: [] };
+  }
+}
+
+/**
  * 完整的 AI 处理流程
  * @param {Blob} audioBlob - 音频文件
- * @returns {Promise<Object>} 处理结果 { transcript, people, tags, summary }
+ * @returns {Promise<Object>} 处理结果 { transcript, organizedText, people, tags, summary }
  */
 export async function processAudio(audioBlob) {
   const results = {
     transcript: '',
+    organizedText: '',
     people: [],
     tags: ['未分类'],
     summary: ''
@@ -242,18 +320,36 @@ export async function processAudio(audioBlob) {
 
   try {
     // 1. 语音转写
+    console.log('开始语音转写...');
     results.transcript = await transcribeAudio(audioBlob);
+    console.log('转写完成，字符数:', results.transcript.length);
 
-    // 并行执行人物提取和标签生成
+    // 2. AI 整理转写内容
+    console.log('开始整理转写内容...');
+    const organized = await organizeTranscript(results.transcript);
+    results.organizedText = organized.organizedText;
+    console.log('整理完成，字符数:', results.organizedText.length);
+
+    // 3. 基于整理后的文本提取人物和标签
+    const textToAnalyze = results.organizedText || results.transcript;
     const [people, tags, summary] = await Promise.all([
-      extractPeople(results.transcript),
-      generateTags(results.transcript),
-      generateSummary(results.transcript)
+      extractPeople(textToAnalyze),
+      generateTags(textToAnalyze),
+      generateSummary(textToAnalyze)
     ]);
 
-    results.people = people;
-    results.tags = tags;
+    // 合并人物列表（去重）
+    results.people = [...new Set([...organized.people, ...people])];
+    // 使用整理后生成的标签，如果为空则用提取的
+    results.tags = organized.tags.length > 0 ? organized.tags : tags;
     results.summary = summary;
+
+    console.log('AI 处理完成:', {
+      transcriptLength: results.transcript.length,
+      organizedLength: results.organizedText.length,
+      people: results.people,
+      tags: results.tags
+    });
 
     return results;
   } catch (error) {

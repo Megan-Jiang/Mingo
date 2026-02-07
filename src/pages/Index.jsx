@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Mic, MicOff, Image, Edit3 } from 'lucide-react';
 import { useRecorder } from '../hooks/useRecorder';
 import { createRecord } from '../services/records';
-import { processAudio, extractPeople, generateTags } from '../services/ai';
+import { processAudio, extractPeople, generateTags, organizeTranscript } from '../services/ai';
 import RecordButton from '../components/RecordButton';
 import RecentRecords from '../components/RecentRecords';
 import ImageUpload from '../components/ImageUpload';
@@ -24,6 +24,7 @@ const Index = () => {
   const [hasRecorded, setHasRecorded] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [organizedText, setOrganizedText] = useState('');
   const [extractedPeople, setExtractedPeople] = useState([]);
   const [generatedTags, setGeneratedTags] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -39,16 +40,17 @@ const Index = () => {
     setHasRecorded(true);
   }, [stopRecording]);
 
-  // AI 转写处理
+  // AI 转写处理（包含整理功能）
   const handleTranscribe = async () => {
     if (!audioBlob) return;
 
     setIsTranscribing(true);
     try {
-      // 调用 AI 服务进行转写、人物提取和标签生成
+      // 调用 AI 服务进行转写、人物提取、标签生成和整理
       const result = await processAudio(audioBlob);
 
       setTranscript(result.transcript);
+      setOrganizedText(result.organizedText || result.transcript);
       setExtractedPeople(result.people);
       setGeneratedTags(result.tags);
     } catch (err) {
@@ -64,16 +66,41 @@ const Index = () => {
     }
   };
 
+  // 手动整理转写内容
+  const handleOrganize = async () => {
+    if (!transcript) return;
+
+    setIsTranscribing(true);
+    try {
+      const result = await organizeTranscript(transcript, extractedPeople);
+      setOrganizedText(result.organizedText);
+      // 如果整理后提取了新人，更新人物列表
+      if (result.people.length > 0) {
+        setExtractedPeople([...new Set([...extractedPeople, ...result.people])]);
+      }
+      // 如果整理后生成了标签，更新标签
+      if (result.tags.length > 0) {
+        setGeneratedTags(result.tags);
+      }
+    } catch (err) {
+      console.error('整理失败:', err);
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
   // 保存记录
   const handleSave = async () => {
     if (!audioBlob) return;
 
     setIsSaving(true);
     try {
-      // 直接创建记录（不保存录音文件到 Storage，节省空间）
+      // 保存整理后的描述（优先）或原始转写
+      const descriptionToSave = organizedText || transcript;
+
       const record = {
-        transcript: transcript || '暂无转写',
-        summary: transcript ? `录音转写：${transcript.slice(0, 100)}...` : '',
+        transcript: descriptionToSave || '暂无转写',
+        summary: descriptionToSave ? `录音记录：${descriptionToSave.slice(0, 100)}...` : '',
         people: extractedPeople,
         events: [],
         tags: generatedTags.length > 0 ? generatedTags : ['未分类']
@@ -84,6 +111,7 @@ const Index = () => {
       // 重置状态
       setHasRecorded(false);
       setTranscript('');
+      setOrganizedText('');
       setExtractedPeople([]);
       setGeneratedTags([]);
       resetRecording();
@@ -97,32 +125,11 @@ const Index = () => {
     }
   };
 
-  // 从转写文本中提取人物（使用 AI）
-  const handleExtractPeople = async () => {
-    if (!transcript) return;
-    try {
-      const people = await extractPeople(transcript);
-      setExtractedPeople(people);
-    } catch (err) {
-      console.error('人物提取失败:', err);
-    }
-  };
-
-  // 从转写文本生成标签（使用 AI）
-  const handleGenerateTags = async () => {
-    if (!transcript) return;
-    try {
-      const tags = await generateTags(transcript);
-      setGeneratedTags(tags);
-    } catch (err) {
-      console.error('标签生成失败:', err);
-    }
-  };
-
   // 重新录音
   const handleReRecord = () => {
     setHasRecorded(false);
     setTranscript('');
+    setOrganizedText('');
     setExtractedPeople([]);
     setGeneratedTags([]);
     resetRecording();
@@ -211,44 +218,58 @@ const Index = () => {
 
                 {/* 转写结果显示 */}
                 {transcript && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-4 text-left">
-                    <p className="text-sm text-gray-600 mb-1">转写内容：</p>
-                    <p className="text-gray-800">{transcript}</p>
-                  </div>
-                )}
+                  <div className="space-y-3">
+                    {/* 原始转写 */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-left">
+                      <p className="text-sm text-gray-600 mb-1">原始转写：</p>
+                      <p className="text-gray-700">{transcript}</p>
+                    </div>
 
-                {/* AI 提取结果 */}
-                {(extractedPeople.length > 0 || generatedTags.length > 0) && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-left">
-                    {/* 人物标签 */}
-                    {extractedPeople.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-sm text-gray-600 mb-1">识别到的人物：</p>
-                        <div className="flex flex-wrap gap-2">
-                          {extractedPeople.map((person, idx) => (
-                            <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
-                              {person}
-                            </span>
-                          ))}
+                    {/* 整理后的描述 */}
+                    {organizedText && organizedText !== transcript && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm font-medium text-blue-700">整理后：</span>
                         </div>
+                        <p className="text-gray-800 whitespace-pre-wrap">{organizedText}</p>
                       </div>
                     )}
 
-                    {/* 事件标签 */}
-                    {generatedTags.length > 0 && (
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">事件标签：</p>
-                        <div className="flex flex-wrap gap-2">
-                          {generatedTags.map((tag, idx) => (
-                            <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
+                    {/* 人物和标签 */}
+                    {(extractedPeople.length > 0 || generatedTags.length > 0) && (
+                      <div className="bg-white border border-gray-200 rounded-lg p-4 text-left">
+                        {/* 人物标签 */}
+                        {extractedPeople.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-sm text-gray-600 mb-1">识别到的人物：</p>
+                            <div className="flex flex-wrap gap-2">
+                              {extractedPeople.map((person, idx) => (
+                                <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
+                                  {person}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 事件标签 */}
+                        {generatedTags.length > 0 && (
+                          <div>
+                            <p className="text-sm text-gray-600 mb-1">事件标签：</p>
+                            <div className="flex flex-wrap gap-2">
+                              {generatedTags.map((tag, idx) => (
+                                <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
+
 
                 {/* 操作按钮 */}
                 <div className="flex justify-center gap-3">
