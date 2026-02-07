@@ -1,27 +1,111 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Settings, HelpCircle, Download, ChevronRight, Tag, BarChart3, LogOut } from 'lucide-react';
+import { User, Settings, HelpCircle, Download, ChevronRight, Tag, BarChart3, LogOut, X } from 'lucide-react';
 import { exportDataToJson, exportRecordsToCsv } from '../services/export';
 import { signOut } from '../services/auth';
+import { getPersonTags, getEventTags, createPersonTag, createEventTag, deletePersonTag, deleteEventTag } from '../services/tags';
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState('settings');
   const [isExporting, setIsExporting] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [personTags, setPersonTags] = useState([]);
+  const [eventTags, setEventTags] = useState([]);
+  const [loadingTags, setLoadingTags] = useState(false);
+  const [newPersonTag, setNewPersonTag] = useState('');
+  const [newEventTag, setNewEventTag] = useState('');
+  const [showAddPersonInput, setShowAddPersonInput] = useState(false);
+  const [showAddEventInput, setShowAddEventInput] = useState(false);
   const navigate = useNavigate();
 
   // 模拟数据
   const monthlyStats = {
     totalInteractions: 42,
     topFriends: [
-      { name: '小明', count: 12, avatar: 'https://nocode.meituan.com/photo/search?keyword=person&width=40&height=40' },
-      { name: '妈妈', count: 8, avatar: 'https://nocode.meituan.com/photo/search?keyword=person&width=40&height=40' },
-      { name: '小红', count: 6, avatar: 'https://nocode.meituan.com/photo/search?keyword=person&width=40&height=40' }
+      { name: '小明', count: 12 },
+      { name: '妈妈', count: 8 },
+      { name: '小红', count: 6 }
     ]
   };
 
-  const personTags = ['工作', '研究生', '本科生', '朋友', '家人', '同事'];
-  const eventTags = ['重要', '思考型', '陪伴型', '娱乐', '学习'];
+  // 加载标签
+  const loadTags = async () => {
+    setLoadingTags(true);
+    try {
+      const [person, event] = await Promise.all([
+        getPersonTags(),
+        getEventTags()
+      ]);
+      setPersonTags(person);
+      setEventTags(event);
+    } catch (err) {
+      console.error('加载标签失败:', err);
+    } finally {
+      setLoadingTags(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'tags') {
+      loadTags();
+    }
+  }, [activeTab]);
+
+  // 添加人物标签
+  const handleAddPersonTag = async () => {
+    if (!newPersonTag.trim()) return;
+
+    try {
+      const tag = await createPersonTag(newPersonTag.trim());
+      setPersonTags([tag, ...personTags]);
+      setNewPersonTag('');
+      setShowAddPersonInput(false);
+    } catch (err) {
+      console.error('添加标签失败:', err);
+      alert('添加失败，请重试');
+    }
+  };
+
+  // 添加事件标签
+  const handleAddEventTag = async () => {
+    if (!newEventTag.trim()) return;
+
+    try {
+      const tag = await createEventTag(newEventTag.trim());
+      setEventTags([tag, ...eventTags]);
+      setNewEventTag('');
+      setShowAddEventInput(false);
+    } catch (err) {
+      console.error('添加标签失败:', err);
+      alert('添加失败，请重试');
+    }
+  };
+
+  // 删除人物标签
+  const handleDeletePersonTag = async (id) => {
+    if (!window.confirm('确定要删除这个标签吗？')) return;
+
+    try {
+      await deletePersonTag(id);
+      setPersonTags(personTags.filter(t => t.id !== id));
+    } catch (err) {
+      console.error('删除标签失败:', err);
+      alert('删除失败，请重试');
+    }
+  };
+
+  // 删除事件标签
+  const handleDeleteEventTag = async (id) => {
+    if (!window.confirm('确定要删除这个标签吗？')) return;
+
+    try {
+      await deleteEventTag(id);
+      setEventTags(eventTags.filter(t => t.id !== id));
+    } catch (err) {
+      console.error('删除标签失败:', err);
+      alert('删除失败，请重试');
+    }
+  };
 
   const handleExportData = async (format = 'json') => {
     if (isExporting) return;
@@ -44,7 +128,6 @@ const Profile = () => {
   };
 
   const showExportOptions = () => {
-    // 弹出选择导出格式
     const choice = window.confirm('点击确定导出全部数据（JSON）\n点击取消导出为 CSV 格式');
     if (choice) {
       handleExportData('json');
@@ -54,12 +137,10 @@ const Profile = () => {
   };
 
   const handleAIConfig = () => {
-    // AI接口配置逻辑
     alert('AI接口配置功能即将实现');
   };
 
   const handleSignOut = async () => {
-    // 确认登出
     if (!window.confirm('确定要退出登录吗？')) return;
 
     setIsSigningOut(true);
@@ -93,7 +174,7 @@ const Profile = () => {
 
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">AI设置</h3>
-        <button 
+        <button
           onClick={handleAIConfig}
           className="w-full flex items-center justify-between p-4 bg-[#e7e3b3] rounded-lg hover:bg-[#fcd753] hover:text-white transition-colors"
         >
@@ -147,25 +228,19 @@ const Profile = () => {
             <p className="text-sm text-gray-600">活跃好友</p>
           </div>
         </div>
-        
+
         <h4 className="font-medium text-gray-700 mb-3">交流最多的小伙伴</h4>
         <div className="space-y-3">
           {monthlyStats.topFriends.map((friend, index) => (
             <div key={index} className="flex items-center gap-3 p-3 bg-[#e7e3b3] rounded-lg">
-              <div className="relative">
-                <img 
-                  src={friend.avatar} 
-                  alt={friend.name}
-                  className="w-10 h-10 rounded-full mx-auto object-cover"
-                />
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#fcd753] text-white text-xs rounded-full flex items-center justify-center">
-                  {index + 1}
-                </span>
+              <div className="w-10 h-10 bg-[#fcd753] rounded-full flex items-center justify-center">
+                <span className="text-white font-medium">{friend.name.charAt(0)}</span>
               </div>
               <div className="flex-1">
                 <p className="font-medium text-gray-800">{friend.name}</p>
                 <p className="text-sm text-gray-600">{friend.count} 次互动</p>
               </div>
+              <span className="text-[#897dbf] font-medium">#{index + 1}</span>
             </div>
           ))}
         </div>
@@ -175,44 +250,134 @@ const Profile = () => {
 
   const renderTagManagement = () => (
     <div className="space-y-4">
+      {/* 人物标签管理 */}
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
           <Tag className="h-5 w-5 text-[#897dbf]" />
           人物标签管理
         </h3>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {personTags.map((tag, index) => (
-            <span 
-              key={index}
-              className="px-3 py-1 bg-[#d6b7d6] text-[#897dbf] rounded-full text-sm"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-        <button className="text-[#fcd753] hover:text-[#e6c24a] transition-colors">
-          + 添加新标签
-        </button>
+
+        {loadingTags ? (
+          <div className="text-center py-4 text-gray-500">加载中...</div>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {personTags.map((tag) => (
+                <div key={tag.id} className="flex items-center gap-1 group">
+                  <span className="px-3 py-1 bg-[#d6b7d6] text-[#897dbf] rounded-full text-sm">
+                    {tag.name}
+                  </span>
+                  <button
+                    onClick={() => handleDeletePersonTag(tag.id)}
+                    className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {personTags.length === 0 && (
+                <p className="text-gray-400 text-sm">暂无标签，点击下方添加</p>
+              )}
+            </div>
+
+            {showAddPersonInput ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newPersonTag}
+                  onChange={(e) => setNewPersonTag(e.target.value)}
+                  placeholder="输入标签名称"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#897dbf]"
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddPersonTag()}
+                />
+                <button
+                  onClick={handleAddPersonTag}
+                  className="px-4 py-2 bg-[#897dbf] text-white rounded-lg hover:bg-[#6b5aa3]"
+                >
+                  添加
+                </button>
+                <button
+                  onClick={() => { setShowAddPersonInput(false); setNewPersonTag(''); }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  取消
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAddPersonInput(true)}
+                className="text-[#fcd753] hover:text-[#e6c24a] transition-colors"
+              >
+                + 添加新标签
+              </button>
+            )}
+          </>
+        )}
       </div>
 
+      {/* 事件标签管理 */}
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
           <Tag className="h-5 w-5 text-[#897dbf]" />
           事件标签管理
         </h3>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {eventTags.map((tag, index) => (
-            <span 
-              key={index}
-              className="px-3 py-1 bg-[#d6b7d6] text-[#897dbf] rounded-full text-sm"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-        <button className="text-[#fcd753] hover:text-[#e6c24a] transition-colors">
-          + 添加新标签
-        </button>
+
+        {loadingTags ? (
+          <div className="text-center py-4 text-gray-500">加载中...</div>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {eventTags.map((tag) => (
+                <div key={tag.id} className="flex items-center gap-1 group">
+                  <span className="px-3 py-1 bg-[#d6b7d6] text-[#897dbf] rounded-full text-sm">
+                    {tag.name}
+                  </span>
+                  <button
+                    onClick={() => handleDeleteEventTag(tag.id)}
+                    className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {eventTags.length === 0 && (
+                <p className="text-gray-400 text-sm">暂无标签，点击下方添加</p>
+              )}
+            </div>
+
+            {showAddEventInput ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newEventTag}
+                  onChange={(e) => setNewEventTag(e.target.value)}
+                  placeholder="输入标签名称"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#897dbf]"
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddEventTag()}
+                />
+                <button
+                  onClick={handleAddEventTag}
+                  className="px-4 py-2 bg-[#897dbf] text-white rounded-lg hover:bg-[#6b5aa3]"
+                >
+                  添加
+                </button>
+                <button
+                  onClick={() => { setShowAddEventInput(false); setNewEventTag(''); }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  取消
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAddEventInput(true)}
+                className="text-[#fcd753] hover:text-[#e6c24a] transition-colors"
+              >
+                + 添加新标签
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -247,8 +412,8 @@ const Profile = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`
                   flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                  ${activeTab === tab.id 
-                    ? 'bg-[#fcd753] text-white' 
+                  ${activeTab === tab.id
+                    ? 'bg-[#fcd753] text-white'
                     : 'text-gray-600 hover:bg-[#e7e3b3]'}
                 `}
               >
