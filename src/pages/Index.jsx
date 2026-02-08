@@ -1,11 +1,13 @@
 import { useState, useCallback } from "react";
-import { Mic, Image as ImageIcon, FileText, Tag, Clock } from "lucide-react";
+import { Mic, Image as ImageIcon, FileText, Tag, Clock, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CloudDeco, StarDeco, HeartDeco } from "../components/DecoElements";
 import { EmptyState } from "../components/EmptyState";
 import { useRecorder } from "../hooks/useRecorder";
 import { createRecord } from "../services/records";
 import { processAudio, extractPeople, generateTags, organizeTranscript } from "../services/ai";
+import { getFriendsByNames } from "../services/friends";
+import { getEventTagNames } from "../services/tags";
 import RecordButton from "../components/RecordButton";
 import RecentRecords from "../components/RecentRecords";
 import ImageUpload from "../components/ImageUpload";
@@ -50,12 +52,46 @@ const Index = () => {
 
     setIsTranscribing(true);
     try {
+      // 并行获取预设事件标签
+      const [allowedTags, friendsMap] = await Promise.all([
+        getEventTagNames(),
+        getFriendsByNames([]) // 先获取空，后面再查
+      ]);
+
       const result = await processAudio(audioBlob);
+
+      // 1. 匹配事件标签（使用预设标签）
+      const tagsResult = await generateTags(
+        result.organizedText || result.transcript,
+        allowedTags
+      );
+
+      // 2. 匹配朋友
+      const peopleToMatch = result.people || [];
+      let existingFriends = [];
+      let unarchivedPeople = [];
+
+      if (peopleToMatch.length > 0) {
+        const friendsMapResult = await getFriendsByNames(peopleToMatch);
+        peopleToMatch.forEach(person => {
+          if (friendsMapResult[person]) {
+            existingFriends.push(person);
+          } else {
+            unarchivedPeople.push(person);
+          }
+        });
+      }
+
+      console.log('匹配结果:', {
+        existingFriends,
+        unarchivedPeople,
+        tags: tagsResult
+      });
 
       setTranscript(result.transcript);
       setOrganizedText(result.organizedText || result.transcript);
       setExtractedPeople(result.people);
-      setGeneratedTags(result.tags);
+      setGeneratedTags(tagsResult);
     } catch (err) {
       console.error("转写失败:", err);
       if (err.message.includes("未配置")) {
@@ -99,6 +135,9 @@ const Index = () => {
       const people = extractedPeople;
       const tags = generatedTags.length > 0 ? generatedTags : ["未分类"];
 
+      // 匹配朋友获取 friend_id
+      const friendsMap = people.length > 0 ? await getFriendsByNames(people) : {};
+
       const baseRecord = {
         transcript: descriptionToSave || "暂无转写",
         summary: descriptionToSave ? `录音记录：${descriptionToSave.slice(0, 100)}...` : "",
@@ -109,12 +148,22 @@ const Index = () => {
       if (people.length === 0) {
         await createRecord({ ...baseRecord, people: [] });
       } else if (people.length === 1) {
-        await createRecord({ ...baseRecord, people: people });
+        const person = people[0];
+        const friend = friendsMap[person];
+        await createRecord({
+          ...baseRecord,
+          people: [person],
+          friend_id: friend?.id || null,
+          unarchived_people: friend ? [] : [person]
+        });
       } else {
         for (const person of people) {
+          const friend = friendsMap[person];
           await createRecord({
             ...baseRecord,
-            people: [person]
+            people: [person],
+            friend_id: friend?.id || null,
+            unarchived_people: friend ? [] : [person]
           });
         }
       }
@@ -151,10 +200,19 @@ const Index = () => {
   const handleTextSave = async (text) => {
     setIsSaving(true);
     try {
+      // 获取预设事件标签和匹配朋友
+      const [allowedTags, friendsMap] = await Promise.all([
+        getEventTagNames(),
+        getFriendsByNames([])
+      ]);
+
       const [people, tags] = await Promise.all([
         extractPeople(text),
-        generateTags(text)
+        generateTags(text, allowedTags)
       ]);
+
+      // 匹配朋友
+      const matchedFriendsMap = people.length > 0 ? await getFriendsByNames(people) : {};
 
       const baseRecord = {
         transcript: text,
@@ -166,12 +224,22 @@ const Index = () => {
       if (people.length === 0) {
         await createRecord({ ...baseRecord, people: [] });
       } else if (people.length === 1) {
-        await createRecord({ ...baseRecord, people: people });
+        const person = people[0];
+        const friend = matchedFriendsMap[person];
+        await createRecord({
+          ...baseRecord,
+          people: [person],
+          friend_id: friend?.id || null,
+          unarchived_people: friend ? [] : [person]
+        });
       } else {
         for (const person of people) {
+          const friend = matchedFriendsMap[person];
           await createRecord({
             ...baseRecord,
-            people: [person]
+            people: [person],
+            friend_id: friend?.id || null,
+            unarchived_people: friend ? [] : [person]
           });
         }
       }
@@ -316,22 +384,32 @@ const Index = () => {
                         <div className="mb-3">
                           <p className="text-sm text-gray-600 mb-2">识别到的人物：</p>
                           <div className="flex flex-wrap gap-2">
-                            {extractedPeople.map((person, idx) => (
-                              <div key={idx} className="flex items-center gap-1">
-                                <span className="px-3 py-1 bg-warm-purpleBg text-warm-purple rounded-full text-sm">
-                                  {person}
-                                </span>
-                                {!addedFriends.includes(person) && (
-                                  <button
-                                    onClick={() => handleAddFriend(person)}
-                                    className="p-1 text-warm-purple hover:text-warm-purpleLight"
-                                    title="添加为朋友"
-                                  >
-                                    <Tag className="h-4 w-4" />
-                                  </button>
-                                )}
-                              </div>
-                            ))}
+                            {extractedPeople.map((person, idx) => {
+                              const isAdded = addedFriends.includes(person);
+                              return (
+                                <div key={idx} className="flex items-center gap-1">
+                                  <span className={`px-3 py-1 rounded-full text-sm ${
+                                    isAdded
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-warm-purpleBg text-warm-purple"
+                                  }`}>
+                                    {person}
+                                    {isAdded && (
+                                      <span className="ml-1 text-xs">✓</span>
+                                    )}
+                                  </span>
+                                  {!isAdded && (
+                                    <button
+                                      onClick={() => handleAddFriend(person)}
+                                      className="p-1 text-warm-purple hover:text-warm-purpleLight"
+                                      title="添加为朋友"
+                                    >
+                                      <Tag className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}

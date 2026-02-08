@@ -185,6 +185,48 @@ export async function getRecordsByDateRange(startDate, endDate) {
 }
 
 /**
+ * 更新记录的未归档人物
+ * @param {string} id - 记录ID
+ * @param {string[]} unarchivedPeople - 剩余未归档人物列表
+ */
+export async function updateUnarchivedPeople(id, unarchivedPeople) {
+  const { data, error } = await supabase
+    .from('records')
+    .update({ unarchived_people: unarchivedPeople })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('更新未归档人物失败:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * 更新记录的 friend_id，同时清除未归档人物列表
+ * @param {string} id - 记录ID
+ * @param {string} friendId - 朋友ID
+ */
+export async function updateRecordFriendId(id, friendId) {
+  const { data, error } = await supabase
+    .from('records')
+    .update({ friend_id: friendId, unarchived_people: [] })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('更新记录朋友ID失败:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+/**
  * 获取涉及指定人物的所有记录
  * @param {string} personName - 人物名称
  * @returns {Promise<Array>} 记录列表

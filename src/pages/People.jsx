@@ -13,6 +13,7 @@ const People = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [error, setError] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // 从 Supabase 加载朋友数据
   useEffect(() => {
@@ -40,7 +41,7 @@ const People = () => {
     };
 
     fetchFriends();
-  }, []);
+  }, [refreshKey]);
 
   // 过滤搜索结果
   const filteredPeople = people.filter(
@@ -58,7 +59,13 @@ const People = () => {
     return (
       <PersonDetail
         person={selectedPerson}
-        onBack={() => setSelectedPerson(null)}
+        onBack={() => {
+          setSelectedPerson(null);
+          setRefreshKey(prev => prev + 1);
+        }}
+        onUpdate={() => {
+          setRefreshKey(prev => prev + 1);
+        }}
       />
     );
   }

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { Clock, Users, Tag, Play } from "lucide-react";
+import { Clock, Users, Tag, Play, AlertCircle, Plus } from "lucide-react";
 import { motion } from "framer-motion";
-import { getRecords } from "../services/records";
+import { getRecords, updateRecordFriendId } from "../services/records";
+import { createFriend, updateFriendLastInteraction } from "../services/friends";
 import { EmptyState } from "./EmptyState";
+import RecordDetail from "./RecordDetail";
 
 /**
  * 格式化日期时间
@@ -41,9 +43,11 @@ const getRelativeTime = (createdAt) => {
   return date.toLocaleDateString("zh-CN");
 };
 
-const RecentRecords = ({ records: propRecords }) => {
+const RecentRecords = ({ records: propRecords, onRefresh }) => {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(!propRecords);
+  const [addingFriend, setAddingFriend] = useState(null); // 格式: "recordId-personName"
+  const [selectedRecord, setSelectedRecord] = useState(null); // 查看详情的记录
 
   // 如果传入了 records prop，直接使用
   useEffect(() => {
@@ -68,6 +72,31 @@ const RecentRecords = ({ records: propRecords }) => {
 
     fetchRecords();
   }, [propRecords]);
+
+  // 添加未归档人物为朋友
+  const handleAddToFriends = async (record, personName) => {
+    try {
+      const stateKey = `${record.id}-${personName}`;
+      setAddingFriend(stateKey);
+      // 创建朋友
+      const newFriend = await createFriend({
+        name: personName,
+        tags: ["新朋友"]
+      });
+      // 更新记录的 friend_id，同时清除 unarchived_people
+      await updateRecordFriendId(record.id, newFriend.id);
+      // 更新朋友的最后互动时间
+      await updateFriendLastInteraction(newFriend.id, record.id);
+      // 重新获取记录
+      const data = await getRecords({ limit: 10 });
+      setRecords(data);
+    } catch (err) {
+      console.error("添加朋友失败:", err);
+      alert("添加失败，请重试");
+    } finally {
+      setAddingFriend(null);
+    }
+  };
 
   const displayRecords = records.length > 0 ? records : null;
 
@@ -100,15 +129,32 @@ const RecentRecords = ({ records: propRecords }) => {
               record.created_at || record.date
             );
 
+            const hasUnarchived = (record.unarchived_people?.length || 0) > 0;
+
             return (
               <motion.div
                 key={record.id}
-                className="bg-white rounded-3xl p-4 shadow-md shadow-warm-purple/8 relative overflow-hidden"
+                className={`bg-white rounded-3xl p-4 shadow-md shadow-warm-purple/8 relative overflow-hidden cursor-pointer ${
+                  hasUnarchived ? "ring-2 ring-red-300" : ""
+                }`}
                 whileHover={{ scale: 1.01 }}
                 transition={{ duration: 0.2 }}
+                onClick={() => setSelectedRecord(record)}
               >
+                {/* 未归档提示 */}
+                {hasUnarchived && (
+                  <div className="absolute top-2 right-2 flex items-center gap-1 text-red-500 text-xs bg-red-50 px-2 py-1 rounded-full">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>人物未归档</span>
+                  </div>
+                )}
+
                 {/* 左侧装饰线 */}
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-warm-yellow to-[#FFEAA7] rounded-l-3xl" />
+                <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-3xl ${
+                  hasUnarchived
+                    ? "bg-gradient-to-b from-red-400 to-red-300"
+                    : "bg-gradient-to-b from-warm-yellow to-[#FFEAA7]"
+                }`} />
 
                 <div className="flex gap-3 ml-3">
                   {/* 头像 */}
@@ -138,6 +184,28 @@ const RecentRecords = ({ records: propRecords }) => {
                       {summary}
                     </p>
 
+                    {/* 未归档人物（可点击添加） */}
+                    {hasUnarchived && (
+                      <div className="flex gap-2 flex-wrap mb-2">
+                        {record.unarchived_people.map((person, idx) => {
+                          const stateKey = `${record.id}-${person}`;
+                          const isAdding = addingFriend === stateKey;
+                          return (
+                            <motion.button
+                              key={idx}
+                              onClick={() => handleAddToFriends(record, person)}
+                              disabled={isAdding}
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-600 rounded-full text-xs tracking-wide hover:bg-red-200 transition-colors"
+                              whileTap={{ scale: 0.95 }}
+                            >
+                              <Plus className="w-3 h-3" />
+                              {isAdding ? "添加中..." : `添加 ${person}`}
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {/* 标签 */}
                     {tags.length > 0 && (
                       <div className="flex gap-2 flex-wrap">
@@ -158,6 +226,14 @@ const RecentRecords = ({ records: propRecords }) => {
             );
           })}
         </div>
+      )}
+
+      {/* 记录详情弹窗 */}
+      {selectedRecord && (
+        <RecordDetail
+          record={selectedRecord}
+          onClose={() => setSelectedRecord(null)}
+        />
       )}
     </div>
   );

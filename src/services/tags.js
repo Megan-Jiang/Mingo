@@ -61,6 +61,40 @@ export async function getEventTags() {
 }
 
 /**
+ * 获取事件标签名称列表（用于 AI 标签匹配）
+ * @returns {Promise<string[]>} 标签名称数组
+ */
+export async function getEventTagNames() {
+  const tags = await getEventTags();
+  return tags.map(t => t.name);
+}
+
+/**
+ * 根据名称批量获取人物标签
+ * @param {string[]} names - 人物名称列表
+ * @returns {Promise<Object>} 名称到标签的映射
+ */
+export async function getPersonTagsByNames(names) {
+  if (!names || names.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from('person_tags')
+    .select('*')
+    .in('name', names);
+
+  if (error) {
+    console.error('批量获取人物标签失败:', error);
+    return {};
+  }
+
+  const map = {};
+  data?.forEach(item => {
+    map[item.name] = item;
+  });
+  return map;
+}
+
+/**
  * 创建人物标签
  * @param {string} name - 标签名称
  * @returns {Promise<Object>} 创建的标签

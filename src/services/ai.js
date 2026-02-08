@@ -147,24 +147,36 @@ export async function extractPeople(text) {
 /**
  * 生成事件标签
  * @param {string} text - 转写文本
+ * @param {string[]} allowedTags - 允许的标签列表（可选）
  * @returns {Promise<string[]>} 生成的标签列表
  */
-export async function generateTags(text) {
+export async function generateTags(text, allowedTags = []) {
   if (!text || text.trim().length === 0) {
     return ['未分类'];
+  }
+
+  let systemPrompt = `你是一个社交记录助手，负责为社交互动生成标签。
+请为以下转写内容生成3-5个简洁的标签。
+规则：
+1. 标签要简洁（1-3个字）
+2. 只返回标签，用中文逗号分隔
+3. 不要返回纯数字或无意义的词
+4. 只返回纯文本，不要JSON格式`;
+
+  // 如果有预设标签，限制在范围内选择
+  if (allowedTags.length > 0) {
+    systemPrompt += `
+5. **必须从以下预设标签中选择**：${allowedTags.join('、')}
+6. 如果内容确实不匹配任何预设标签，只能返回"未分类"`;
+  } else {
+    systemPrompt += `
+5. 分类包括但不限于：咖啡、饭局、运动、学习、工作、家庭、聚会、旅行、节日等`;
   }
 
   const result = await callStepFunChat([
     {
       role: 'system',
-      content: `你是一个社交记录助手，负责为社交互动生成标签。
-请为以下转写内容生成3-5个简洁的标签。
-规则：
-1. 标签要简洁（1-3个字）
-2. 分类包括但不限于：咖啡、饭局、运动、学习、工作、家庭、聚会、旅行、节日等
-3. 只返回标签，用中文逗号分隔
-4. 不要返回纯数字或无意义的词
-5. 只返回纯文本，不要JSON格式`
+      content: systemPrompt
     },
     {
       role: 'user',
@@ -173,6 +185,13 @@ export async function generateTags(text) {
   ], 0.5);
 
   const tags = result.split(/[,，]/).map(s => s.trim()).filter(s => s.length > 0);
+
+  // 过滤并返回匹配的标签
+  if (allowedTags.length > 0) {
+    const matchedTags = tags.filter(tag => allowedTags.includes(tag));
+    return matchedTags.length > 0 ? matchedTags : ['未分类'];
+  }
+
   return tags.length > 0 ? tags : ['未分类'];
 }
 
