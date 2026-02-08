@@ -329,3 +329,56 @@ export async function processAudio(audioBlob) {
     throw error;
   }
 }
+
+/**
+ * 生成祝福语
+ * @param {string} friendName - 朋友姓名/备注
+ * @param {string} holiday - 节日名称
+ * @param {string} type - 节日类型（solar/lunar）
+ * @param {string[]} tags - 朋友标签列表（可选）
+ * @param {Array} recentRecords - 最近互动记录（可选）
+ * @returns {Promise<string>} 生成的祝福语
+ */
+export async function generateBlessing(friendName, holiday, type = 'solar', tags = [], recentRecords = []) {
+  const typeText = type === 'lunar' ? '农历' : '';
+
+  // 构建上下文信息
+  let contextInfo = '';
+  if (tags && tags.length > 0) {
+    contextInfo += `\n朋友标签：${tags.join('、')}`;
+  }
+  if (recentRecords && recentRecords.length > 0) {
+    const recordsSummary = recentRecords.map(r => {
+      const summary = r.summary || r.content || '';
+      return `- ${summary.slice(0, 50)}${summary.length > 50 ? '...' : ''}`;
+    }).join('\n');
+    contextInfo += `\n最近互动：\n${recordsSummary}`;
+  }
+
+  return await callStepFunChat([
+    {
+      role: 'system',
+      content: `你是一个走心、细腻、有分寸感的祝福语生成助手。
+
+你的任务是根据提供的对象信息、关系、标签和互动经历，生成一段真正"像我发的"祝福，而不是模板化套话。
+
+请为${typeText}${holiday}生成一段温馨祝福语。
+${contextInfo ? `\n【对方相关信息】\n${contextInfo}` : ''}
+
+写作原则：
+1. 结合节日氛围（如新春偏温暖团圆，生日偏成长与陪伴等）
+2. 必须结合提供的具体信息（如身份、性格、共同经历、曾经的帮助等）
+3. 语气自然，像真实聊天发出的内容
+4. 不要堆砌成语，不要连续使用传统套话
+5. 控制在30-60字
+6. 允许轻微口语感，但不要随意
+7. 只输出祝福正文，不要任何解释或前缀
+
+如果有"曾帮助我""一起经历过某事"等信息，请优先融入表达感谢或共同成长的语境。`
+    },
+    {
+      role: 'user',
+      content: `为 ${friendName} 生成${typeText}${holiday}祝福语`
+    }
+  ], 0.7);
+}

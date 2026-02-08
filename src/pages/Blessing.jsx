@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Star,
   Gift,
@@ -6,6 +6,9 @@ import {
   ToggleLeft,
   ToggleRight,
   Plus,
+  RefreshCw,
+  Copy,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,44 +16,182 @@ import {
   PlaneDeco,
 } from "../components/DecoElements";
 import { EmptyState } from "../components/EmptyState";
+import { getBlessings, getFriendWithDetails } from "../services/friends";
+import { generateBlessing } from "../services/ai";
+
+// 祝福语弹窗组件
+const BlessingDialog = ({ blessing, onClose, onConfirm }) => {
+  const [blessingText, setBlessingText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    console.log('BlessingDialog 初始化', blessing);
+    generate();
+  }, []);
+
+  const generate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      console.log('开始生成祝福语', blessing.name, blessing.holiday, blessing.type);
+
+      // 获取朋友的详细信息（包含标签和互动记录）
+      let tags = [];
+      let recentRecords = [];
+      try {
+        const friendDetails = await getFriendWithDetails(blessing.friend_id);
+        tags = friendDetails.tags || [];
+        recentRecords = friendDetails.recentRecords || [];
+        console.log('获取朋友详情成功', { tags, recentRecords });
+      } catch (err) {
+        console.warn('获取朋友详情失败，使用默认信息', err);
+      }
+
+      const text = await generateBlessing(
+        blessing.name,
+        blessing.holiday,
+        blessing.type,
+        tags,
+        recentRecords
+      );
+      console.log('生成成功:', text);
+      setBlessingText(text);
+    } catch (err) {
+      console.error('生成祝福语失败:', err);
+      setError(err.message);
+      setBlessingText('生成失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(blessingText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleConfirm = () => {
+    onConfirm(blessingText);
+    onClose();
+  };
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl"
+        >
+          {/* 头部 */}
+          <div className="flex items-center justify-between px-6 py-4 border-b">
+            <div className="flex items-center gap-3">
+              <Star className="w-5 h-5 text-warm-yellow" fill="#FFE082" />
+              <h2 className="text-lg font-semibold text-gray-800">
+                {blessing.name} · {blessing.holiday}
+              </h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
+
+          {/* 祝福语内容 */}
+          <div className="p-6">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <div className="w-10 h-10 border-4 border-warm-purple/30 border-t-warm-purple rounded-full animate-spin mb-4" />
+                <p className="text-gray-500">AI 正在生成祝福语...</p>
+              </div>
+            ) : error ? (
+              <div className="bg-red-50 rounded-2xl p-5 mb-4">
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            ) : (
+              <div className="bg-warm-cream rounded-2xl p-5 mb-4">
+                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {blessingText}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* 底部按钮 */}
+          <div className="flex gap-3 px-6 py-4 border-t bg-gray-50">
+            <motion.button
+              onClick={generate}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-100 disabled:opacity-50 transition-colors"
+              whileTap={{ scale: 0.98 }}
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              重新生成
+            </motion.button>
+            <motion.button
+              onClick={handleCopy}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-100 disabled:opacity-50 transition-colors"
+              whileTap={{ scale: 0.98 }}
+            >
+              <Copy className="w-4 h-4" />
+              {copied ? '已复制' : '复制'}
+            </motion.button>
+            <motion.button
+              onClick={handleConfirm}
+              disabled={loading || !blessingText}
+              className="flex-1 px-6 py-3 bg-warm-purple text-white rounded-xl hover:bg-warm-purple/80 disabled:opacity-50 transition-colors"
+              whileTap={{ scale: 0.98 }}
+            >
+              确认使用
+            </motion.button>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+};
 
 const Blessing = () => {
   const [showCompleted, setShowCompleted] = useState(false);
-  const [blessings, setBlessings] = useState([
-    {
-      id: "1",
-      name: "妈妈",
-      holiday: "生日",
-      date: "2月20日",
-      completed: false,
-    },
-    {
-      id: "2",
-      name: "小李",
-      holiday: "春节",
-      date: "1月29日",
-      completed: true,
-    },
-    {
-      id: "3",
-      name: "小美",
-      holiday: "情人节",
-      date: "2月14日",
-      completed: false,
-    },
-    {
-      id: "4",
-      name: "张老师",
-      holiday: "教师节",
-      date: "9月10日",
-      completed: false,
-    },
-  ]);
+  const [blessings, setBlessings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedBlessing, setSelectedBlessing] = useState(null);
+
+  useEffect(() => {
+    loadBlessings();
+  }, []);
+
+  const loadBlessings = async () => {
+    try {
+      const data = await getBlessings();
+      setBlessings(data.map(b => ({ ...b, completed: false })));
+    } catch (err) {
+      console.error('加载祝福列表失败:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggleCompleted = (id) => {
     setBlessings(
       blessings.map((b) => (b.id === id ? { ...b, completed: !b.completed } : b))
     );
+  };
+
+  const handleGenerateBlessing = (text) => {
+    // 复制到剪贴板
+    navigator.clipboard.writeText(text);
+    // 标记为已完成
+    if (selectedBlessing) {
+      toggleCompleted(selectedBlessing.id);
+    }
   };
 
   const filteredBlessings = showCompleted
@@ -147,16 +288,19 @@ const Blessing = () => {
                     {blessing.date}
                   </div>
                   <div className="col-span-3 flex items-center justify-center gap-2">
-                    <motion.button
+                    <button
+                      onClick={() => {
+                        console.log('点击星星按钮', blessing);
+                        setSelectedBlessing(blessing);
+                      }}
                       className="p-2 rounded-full hover:bg-warm-pink/30 transition-all"
-                      whileTap={{ scale: 0.9 }}
-                      title="查看详情"
+                      title="生成祝福"
                     >
                       <Star
                         className="w-4 h-4 text-warm-yellow"
                         fill="#FFE082"
                       />
-                    </motion.button>
+                    </button>
                     <motion.button
                       className="p-2 rounded-full hover:bg-warm-yellow/30 transition-all"
                       whileTap={{ scale: 0.9 }}
@@ -198,6 +342,15 @@ const Blessing = () => {
       >
         <Plus className="w-6 h-6 text-white" />
       </motion.button>
+
+      {/* AI 祝福语弹窗 */}
+      {selectedBlessing && (
+        <BlessingDialog
+          blessing={selectedBlessing}
+          onClose={() => setSelectedBlessing(null)}
+          onConfirm={handleGenerateBlessing}
+        />
+      )}
     </div>
   );
 };

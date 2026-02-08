@@ -226,3 +226,124 @@ export async function getFriendsByNames(names) {
   });
   return map;
 }
+
+/**
+ * 获取所有朋友的祝福列表（重要节日）
+ * @returns {Promise<Array>} 按从近到远排序的祝福列表
+ */
+export async function getBlessings() {
+  const { data, error } = await supabase
+    .from('friends')
+    .select('id, name, remark, important_dates')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('获取祝福列表失败:', error);
+    throw error;
+  }
+
+  const currentMonth = new Date().getMonth() + 1;
+  const currentDay = new Date().getDate();
+
+  const blessings = [];
+
+  for (const friend of data || []) {
+    const dates = friend.important_dates || [];
+
+    for (const item of dates) {
+      // 获取节日日期
+      let month, day;
+
+      // 优先使用 monthDay 字段（标准格式 MM-DD）
+      if (item.monthDay) {
+        const parts = item.monthDay.split('-').map(Number);
+        month = parts[0];
+        day = parts[1];
+      } else if (item.date) {
+        // date 字段可能是 MM-DD 或 YYYY-MM-DD
+        const parts = item.date.split('-').map(Number);
+        if (parts.length === 3) {
+          // YYYY-MM-DD 格式，取后两位
+          month = parts[1];
+          day = parts[2];
+        } else {
+          month = parts[0];
+          day = parts[1];
+        }
+      } else {
+        continue;
+      }
+
+      if (!month || !day) continue;
+
+      // 判断是否已过
+      let isPast = false;
+      if (item.type === 'lunar') {
+        isPast = true; // 农历节日暂不处理排序，排在最后
+      } else {
+        if (month < currentMonth || (month === currentMonth && day < currentDay)) {
+          isPast = true;
+        }
+      }
+
+      blessings.push({
+        id: `${friend.id}-${item.name}`,
+        friend_id: friend.id,
+        name: friend.remark || friend.name,
+        holiday: item.name,
+        date: `${month}月${day}日`,
+        month,
+        day,
+        type: item.type,
+        isPast
+      });
+    }
+  }
+
+  // 先按是否已过排序（未过的在前），再按月日排序
+  blessings.sort((a, b) => {
+    if (a.isPast !== b.isPast) {
+      return a.isPast ? 1 : -1;
+    }
+    if (a.month !== b.month) return a.month - b.month;
+    return a.day - b.day;
+  });
+
+  return blessings;
+}
+
+/**
+ * 获取朋友的详细信息（包含标签和最近互动记录）
+ * @param {string} friendId - 朋友ID
+ * @returns {Promise<Object>} 朋友详细信息
+ */
+export async function getFriendWithDetails(friendId) {
+  // 获取朋友基本信息
+  const { data: friend, error } = await supabase
+    .from('friends')
+    .select('*')
+    .eq('id', friendId)
+    .single();
+
+  if (error) {
+    console.error('获取朋友详情失败:', error);
+    throw error;
+  }
+
+  // 获取最近的互动记录（最近3条）
+  const { data: records, error: recordsError } = await supabase
+    .from('records')
+    .select('content, summary, tags, created_at')
+    .eq('friend_id', friendId)
+    .order('created_at', { ascending: false })
+    .limit(3);
+
+  if (recordsError) {
+    console.error('获取互动记录失败:', recordsError);
+  }
+
+  return {
+    ...friend,
+    recentRecords: records || []
+  };
+}
