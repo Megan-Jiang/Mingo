@@ -6,6 +6,10 @@ import { createFriend, updateFriendLastInteraction } from "../services/friends";
 import { EmptyState } from "./EmptyState";
 import RecordDetail from "./RecordDetail";
 
+// 归档成功音效
+import successSoundFile from '../assets/success.mp3';
+const successSound = new Audio(successSoundFile);
+
 /**
  * 格式化日期时间
  */
@@ -87,6 +91,9 @@ const RecentRecords = ({ records: propRecords, onRefresh }) => {
       await updateRecordFriendId(record.id, newFriend.id);
       // 更新朋友的最后互动时间
       await updateFriendLastInteraction(newFriend.id, record.id);
+      // 播放归档成功音效
+      successSound.currentTime = 0;
+      successSound.play().catch(err => console.warn('播放音效失败:', err));
       // 重新获取记录
       const data = await getRecords({ limit: 10 });
       setRecords(data);
