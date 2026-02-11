@@ -238,7 +238,7 @@ const PersonDetail = ({ person, onBack, onUpdate, onDelete }) => {
   }
 
   return (
-    <div className="min-h-screen bg-warm-cream pb-24">
+    <div className="min-h-screen bg-warm-cream px-5 pb-24">
         {/* 头部导航 */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -343,75 +343,79 @@ const PersonDetail = ({ person, onBack, onUpdate, onDelete }) => {
         </div>
 
         {/* 时间轴事件列表 */}
-        <div className="bg-white rounded-3xl shadow-lg p-6">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-warm-purple" />
-            互动记录
-          </h3>
+        <div className="bg-white rounded-3xl shadow-lg overflow-hidden flex flex-col h-[500px]">
+          <div className="p-4 border-b flex-shrink-0">
+            <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-warm-purple" />
+              互动记录
+            </h3>
+          </div>
 
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin h-6 w-6 border-2 border-warm-purple border-t-transparent rounded-full mx-auto"></div>
-            </div>
-          ) : events.length > 0 ? (
-            <div className="space-y-4">
-              {events.map((event) => (
-                <div key={event.id} className="border-l-4 border-warm-yellow pl-4 py-3 hover:bg-warm-cream rounded-r-lg transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm text-gray-500">
-                      {event.date}
+          <div className="flex-1 overflow-y-auto p-4">
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin h-6 w-6 border-2 border-warm-purple border-t-transparent rounded-full mx-auto"></div>
+              </div>
+            ) : events.length > 0 ? (
+              <div className="space-y-4">
+                {events.map((event) => (
+                  <div key={event.id} className="border-l-4 border-warm-yellow pl-4 py-3 hover:bg-warm-cream rounded-r-lg transition-colors">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm text-gray-500">
+                        {event.date}
+                      </div>
+                    </div>
+
+                    <p className="text-gray-700 mb-2">{event.summary}</p>
+
+                    <div className="flex items-center gap-2">
+                      <Tag className="h-4 w-4 text-gray-400" />
+                      <div className="flex gap-1">
+                        {event.tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className="px-3 py-1 bg-warm-purple/10 text-warm-purple text-xs rounded-full"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>还没有互动记录</p>
+              </div>
+            )}
+          </div>
 
-                  <p className="text-gray-700 mb-2">{event.summary}</p>
+          {/* 底部输入按钮 */}
+          <div className="p-4 border-t flex-shrink-0 bg-white">
+            <div className="flex gap-3">
+              <motion.button
+                onClick={() => setShowRecordDialog(true)}
+                className="flex-1 py-3 bg-[#fcd753] shadow-lg rounded-xl flex items-center justify-center gap-2"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Mic className="w-5 h-5 text-white" />
+                <span className="text-gray-800 font-medium">添加录音</span>
+              </motion.button>
 
-                  <div className="flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-gray-400" />
-                    <div className="flex gap-1">
-                      {event.tags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1 bg-warm-purple/10 text-warm-purple text-xs rounded-full"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
+              <motion.button
+                onClick={() => setShowTextDialog(true)}
+                className="flex-1 py-3 bg-warm-purple shadow-lg shadow-warm-purple/30 rounded-xl flex items-center justify-center gap-2"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <FileText className="w-5 h-5 text-white" />
+                <span className="text-white font-medium">添加文字</span>
+              </motion.button>
             </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>还没有互动记录</p>
-            </div>
-          )}
-        </div>
-
-        {/* 底部输入按钮 */}
-        <div className="fixed bottom-20 left-5 right-5 flex gap-3 z-40">
-          {/* 录音按钮 */}
-          <motion.button
-            onClick={() => setShowRecordDialog(true)}
-            className="flex-1 py-3 bg-[#fcd753] shadow-lg rounded-xl flex items-center justify-center gap-2"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <Mic className="w-5 h-5 text-white" />
-            <span className="text-gray-800 font-medium">添加录音</span>
-          </motion.button>
-
-          {/* 文字按钮 */}
-          <motion.button
-            onClick={() => setShowTextDialog(true)}
-            className="flex-1 py-3 bg-warm-purple shadow-lg shadow-warm-purple/30 rounded-xl flex items-center justify-center gap-2"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <FileText className="w-5 h-5 text-white" />
-            <span className="text-white font-medium">添加文字</span>
-          </motion.button>
+          </div>
         </div>
 
         {/* 录音弹窗 */}
