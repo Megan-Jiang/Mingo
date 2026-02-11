@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import {
   Star,
-  Gift,
   Check,
   ToggleLeft,
   ToggleRight,
-  Plus,
   RefreshCw,
   Copy,
   X,
@@ -16,7 +14,7 @@ import {
   PlaneDeco,
 } from "../components/DecoElements";
 import { EmptyState } from "../components/EmptyState";
-import { getBlessings, getFriendWithDetails } from "../services/friends";
+import { getBlessings, getFriendWithDetails, toggleBlessingCompleted } from "../services/friends";
 import { generateBlessing } from "../services/ai";
 
 // 祝福语弹窗组件
@@ -171,7 +169,7 @@ const Blessing = () => {
   const loadBlessings = async () => {
     try {
       const data = await getBlessings();
-      setBlessings(data.map(b => ({ ...b, completed: false })));
+      setBlessings(data);
     } catch (err) {
       console.error('加载祝福列表失败:', err);
     } finally {
@@ -179,10 +177,28 @@ const Blessing = () => {
     }
   };
 
-  const toggleCompleted = (id) => {
+  const toggleCompleted = async (id) => {
+    const blessing = blessings.find(b => b.id === id);
+    if (!blessing) return;
+
+    const newStatus = !blessing.completed;
+
+    // 先更新本地状态
     setBlessings(
-      blessings.map((b) => (b.id === id ? { ...b, completed: !b.completed } : b))
+      blessings.map((b) => (b.id === id ? { ...b, completed: newStatus } : b))
     );
+
+    // 保存到数据库
+    try {
+      await toggleBlessingCompleted(blessing.friend_id, blessing.holiday, newStatus);
+    } catch (err) {
+      console.error('保存祝福状态失败:', err);
+      // 如果保存失败，恢复原状态
+      setBlessings(
+        blessings.map((b) => (b.id === id ? { ...b, completed: !newStatus } : b))
+      );
+      alert('保存失败，请重试');
+    }
   };
 
   const handleGenerateBlessing = (text) => {
@@ -302,13 +318,6 @@ const Blessing = () => {
                       />
                     </button>
                     <motion.button
-                      className="p-2 rounded-full hover:bg-warm-yellow/30 transition-all"
-                      whileTap={{ scale: 0.9 }}
-                      title="编辑祝福"
-                    >
-                      <Gift className="w-4 h-4 text-warm-purple" />
-                    </motion.button>
-                    <motion.button
                       onClick={() => toggleCompleted(blessing.id)}
                       className={`p-2 rounded-full transition-all ${
                         blessing.completed
@@ -333,15 +342,6 @@ const Blessing = () => {
           )}
         </div>
       </div>
-
-      {/* 添加按钮 */}
-      <motion.button
-        className="fixed bottom-24 right-6 w-14 h-14 bg-gradient-to-br from-warm-purple to-warm-purpleLight rounded-full shadow-lg shadow-warm-purple/30 flex items-center justify-center"
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <Plus className="w-6 h-6 text-white" />
-      </motion.button>
 
       {/* AI 祝福语弹窗 */}
       {selectedBlessing && (

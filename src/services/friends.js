@@ -111,21 +111,43 @@ export async function updateFriend(id, updates) {
 
 /**
  * 同步更新 records 表中该朋友的姓名
+ * 同时更新 friend_id 关联的记录和 people 字段包含该名字的记录
  */
 async function syncFriendNameInRecords(friendId, oldName, newName) {
-  // 获取所有相关记录
-  const { data: records, error: fetchError } = await supabase
+  // 1. 更新 friend_id 关联的记录
+  const { data: friendRecords, error: fetchError1 } = await supabase
     .from('records')
     .select('*')
     .eq('friend_id', friendId);
 
-  if (fetchError) {
-    console.error('获取相关记录失败:', fetchError);
+  if (fetchError1) {
+    console.error('获取朋友关联记录失败:', fetchError1);
+  } else {
+    for (const record of friendRecords) {
+      const people = record.people || [];
+      const updatedPeople = people.map(p => p === oldName ? newName : p);
+
+      if (JSON.stringify(people) !== JSON.stringify(updatedPeople)) {
+        await supabase
+          .from('records')
+          .update({ people: updatedPeople })
+          .eq('id', record.id);
+      }
+    }
+  }
+
+  // 2. 更新 people 字段中包含旧名字的所有记录（即使 friend_id 不同）
+  const { data: allRecords, error: fetchError2 } = await supabase
+    .from('records')
+    .select('*')
+    .contains('people', [oldName]);
+
+  if (fetchError2) {
+    console.error('获取包含该名字的记录失败:', fetchError2);
     return;
   }
 
-  // 更新每条记录中的 people 数组
-  for (const record of records) {
+  for (const record of allRecords) {
     const people = record.people || [];
     const updatedPeople = people.map(p => p === oldName ? newName : p);
 
@@ -144,33 +166,51 @@ async function syncFriendNameInRecords(friendId, oldName, newName) {
  * @param {string} recordId - 记录ID
  */
 export async function updateFriendLastInteraction(friendId, recordId) {
-  const { data: record, error: recordError } = await supabase
-    .from('records')
-    .select('created_at')
-    .eq('id', recordId)
-    .single();
-
-  if (recordError || !record) {
-    console.error('获取记录失败:', recordError);
-    return;
-  }
-
   const { error } = await supabase
     .from('friends')
-    .update({ updated_at: record.created_at })
+    .update({ updated_at: new Date().toISOString() })
     .eq('id', friendId);
 
   if (error) {
     console.error('更新朋友最后互动时间失败:', error);
-    throw error;
   }
 }
 
 /**
  * 删除朋友
  * @param {string} id - 朋友ID
+ * @param {string} name - 朋友姓名（用于更新记录）
  */
-export async function deleteFriend(id) {
+export async function deleteFriend(id, name) {
+  try {
+    // 先将相关记录的 friend_id 设为 null，变成未归档
+    const { data: records, error: fetchError } = await supabase
+      .from('records')
+      .select('id, people')
+      .eq('friend_id', id);
+
+    if (fetchError) {
+      console.error('获取相关记录失败:', fetchError);
+    } else {
+      for (const record of records || []) {
+        const people = record.people || [];
+        // 如果 people 中包含该朋友名字，保留（变成未归档状态）
+        // 如果没有，则添加进去以便后续识别
+        const updatedPeople = people.includes(name)
+          ? people
+          : [...people, name];
+
+        await supabase
+          .from('records')
+          .update({ friend_id: null, unarchived_people: updatedPeople })
+          .eq('id', record.id);
+      }
+    }
+  } catch (err) {
+    console.error('更新记录失败:', err);
+  }
+
+  // 删除朋友
   const { error } = await supabase
     .from('friends')
     .delete()
@@ -234,7 +274,7 @@ export async function getFriendsByNames(names) {
 export async function getBlessings() {
   const { data, error } = await supabase
     .from('friends')
-    .select('id, name, remark, important_dates')
+    .select('id, name, remark, important_dates, blessings_completed')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -249,6 +289,7 @@ export async function getBlessings() {
 
   for (const friend of data || []) {
     const dates = friend.important_dates || [];
+    const completedStatus = friend.blessings_completed || {};
 
     for (const item of dates) {
       // 获取节日日期
@@ -286,6 +327,9 @@ export async function getBlessings() {
         }
       }
 
+      // 祝福完成状态的 key
+      const blessingKey = `${friend.id}-${item.name}`;
+
       blessings.push({
         id: `${friend.id}-${item.name}`,
         friend_id: friend.id,
@@ -295,7 +339,8 @@ export async function getBlessings() {
         month,
         day,
         type: item.type,
-        isPast
+        isPast,
+        completed: completedStatus[blessingKey] || false
       });
     }
   }
@@ -310,6 +355,42 @@ export async function getBlessings() {
   });
 
   return blessings;
+}
+
+/**
+ * 切换祝福完成状态
+ * @param {string} friendId - 朋友ID
+ * @param {string} holidayName - 节日名称
+ * @param {boolean} completed - 完成状态
+ */
+export async function toggleBlessingCompleted(friendId, holidayName, completed) {
+  // 先获取当前状态
+  const { data: friend, error: fetchError } = await supabase
+    .from('friends')
+    .select('blessings_completed')
+    .eq('id', friendId)
+    .single();
+
+  if (fetchError) {
+    console.error('获取朋友祝福状态失败:', fetchError);
+    throw fetchError;
+  }
+
+  const completedStatus = friend.blessings_completed || {};
+  const blessingKey = `${friendId}-${holidayName}`;
+
+  // 更新状态
+  completedStatus[blessingKey] = completed;
+
+  const { error } = await supabase
+    .from('friends')
+    .update({ blessings_completed: completedStatus })
+    .eq('id', friendId);
+
+  if (error) {
+    console.error('更新祝福状态失败:', error);
+    throw error;
+  }
 }
 
 /**

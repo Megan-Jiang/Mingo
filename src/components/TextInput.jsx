@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
 import { X, Save, Sparkles } from 'lucide-react';
+import { organizeTranscript, extractPeople, generateTags } from '../services/ai';
+import { getEventTagNames } from '../services/tags';
 
 /**
  * 文本输入弹窗
  *
  * 支持：
  * - 直接输入文本创建记录
- * - AI 优化文本（后续接入）
+ * - AI 转存（整理文本，提取人名和标签）
  */
 const TextInput = ({ onClose, onSave }) => {
   const [text, setText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isAIGenerating, setIsAIGenerating] = useState(false);
+  const [extractedPeople, setExtractedPeople] = useState([]);
+  const [generatedTags, setGeneratedTags] = useState([]);
 
   // 简单统计
   const charCount = text.length;
@@ -35,8 +39,8 @@ const TextInput = ({ onClose, onSave }) => {
     }
   };
 
-  // AI 优化（模拟）
-  const handleAIGenerate = async () => {
+  // AI 转存（整理文本，提取人名和标签）
+  const handleAITransfer = async () => {
     if (!text.trim()) {
       alert('请先输入一些内容');
       return;
@@ -44,15 +48,39 @@ const TextInput = ({ onClose, onSave }) => {
 
     setIsAIGenerating(true);
     try {
-      // TODO: 调用 AI 接口优化
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 获取预设事件标签
+      const [allowedTags] = await Promise.all([
+        getEventTagNames()
+      ]);
 
-      // 模拟 AI 润色
-      const aiText = `今天的交流：${text}\n\n记录要点：\n- 互动时间：刚刚\nn- 涉及话题：日常交流\n- 情感状态：积极`;
-      setText(aiText);
+      // 调用 AI 整理转写内容
+      const organized = await organizeTranscript(text);
+
+      // 提取人物
+      const people = await extractPeople(text);
+
+      // 生成标签
+      const tags = await generateTags(text, allowedTags);
+
+      //
+      setExtractedPeople(people);
+      setGeneratedTags(tags);
+
+      // 用整理后的文本更新输入框
+      setText(organized.organizedText);
+
+      // 显示提取结果
+      let message = 'AI 转存完成！';
+      if (people.length > 0) {
+        message += `\n识别到的人物：${people.join('、')}`;
+      }
+      if (tags.length > 0) {
+        message += `\n事件标签：${tags.join('、')}`;
+      }
+      alert(message);
     } catch (err) {
-      console.error('AI 生成失败:', err);
-      alert('AI 生成失败，请重试');
+      console.error('AI 转存失败:', err);
+      alert('AI 转存失败，请重试');
     } finally {
       setIsAIGenerating(false);
     }
@@ -88,14 +116,30 @@ const TextInput = ({ onClose, onSave }) => {
           </div>
         </div>
 
-        {/* AI 辅助按钮 */}
+        {/* 提取结果显示 */}
+        {(extractedPeople.length > 0 || generatedTags.length > 0) && (
+          <div className="mt-3 p-3 bg-warm-purpleBg rounded-lg">
+            {extractedPeople.length > 0 && (
+              <p className="text-sm text-warm-purple mb-1">
+                人物：{extractedPeople.join('、')}
+              </p>
+            )}
+            {generatedTags.length > 0 && (
+              <p className="text-sm text-warm-purple">
+                标签：{generatedTags.join('、')}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* AI 转存按钮 */}
         <button
-          onClick={handleAIGenerate}
+          onClick={handleAITransfer}
           disabled={isAIGenerating || !text.trim()}
           className="w-full mt-3 flex items-center justify-center gap-2 py-2 px-4 bg-[#897dbf] text-white rounded-lg hover:bg-[#6b5aa3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Sparkles className="h-4 w-4" />
-          {isAIGenerating ? 'AI 处理中...' : 'AI 辅助优化'}
+          {isAIGenerating ? 'AI 处理中...' : 'AI 转存'}
         </button>
 
         {/* 底部按钮 */}

@@ -2,10 +2,14 @@ import { useState, useEffect } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  Star,
   Cake,
+  Flower,
+  X,
+  Clock,
+  Users,
+  Tag,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   CloudDeco,
   StarDeco,
@@ -13,18 +17,6 @@ import {
 import { getFriends } from "../services/friends";
 import { getRecordsByDateRange } from "../services/records";
 import { Lunar } from "lunar-javascript";
-
-// 预设公历节日
-const PRESET_SOLAR_HOLIDAYS = {
-  '01-01': '元旦',
-  '02-14': '情人节',
-  '03-08': '妇女节',
-  '04-04': '清明节',
-  '05-01': '劳动节',
-  '06-01': '儿童节',
-  '10-01': '国庆节',
-  '12-25': '圣诞节',
-};
 
 /**
  * 将农历转换为指定年份的公历日期
@@ -48,6 +40,8 @@ const Calendar = () => {
   const [specialDays, setSpecialDays] = useState([]);
   const [recordsByDate, setRecordsByDate] = useState({});
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(null); // 选中的日期 { day, records }
+  const [selectedDateRecords, setSelectedDateRecords] = useState([]); // 选中日期的记录详情
 
   // 获取朋友的生日和重要节日
   useEffect(() => {
@@ -56,23 +50,9 @@ const Calendar = () => {
         const friends = await getFriends();
         console.log('【Calendar】获取到朋友数量:', friends.length);
 
-        // 检查所有朋友的 birthday 和 important_dates 字段
-        friends.forEach((f, i) => {
-          console.log(`朋友 ${i} [${f.name}]:`, {
-            birthday: f.birthday,
-            important_dates: f.important_dates
-          });
-
-          // 检查农历节日数据
-          if (f.important_dates && f.important_dates.length > 0) {
-            f.important_dates.forEach((d, j) => {
-              console.log(`  节日 ${j}: name=${d.name}, date=${d.date}, type=${d.type}`);
-            });
-          }
-        });
-
         const year = currentMonth.getFullYear();
         const days = [];
+        const holidayMap = new Map(); // 用于节日去重
 
         friends.forEach(friend => {
           // 生日
@@ -82,20 +62,16 @@ const Calendar = () => {
             const b = friend.birthday.trim();
 
             let month, day;
-            // 生日格式可能是 YYYY-MM-DD 或 MM-DD
             const parts = b.split('-');
             if (parts.length === 3) {
-              // YYYY-MM-DD
               month = parseInt(parts[1]);
               day = parseInt(parts[2]);
             } else if (parts.length === 2) {
-              // MM-DD
               month = parseInt(parts[0]);
               day = parseInt(parts[1]);
             }
 
             if (month && day) {
-              // 农历生日需要转换
               if (isLunar) {
                 const solar = lunarToSolar(month, day, year);
                 if (solar) {
@@ -109,7 +85,8 @@ const Calendar = () => {
                   month,
                   day,
                   type: 'birthday',
-                  name: `${friend.name}的生日`,
+                  displayName: `${friend.name}的生日`,
+                  holidayName: '生日',
                   friendId: friend.id,
                   isLunar
                 });
@@ -121,19 +98,12 @@ const Calendar = () => {
           const festivals = friend.important_dates || [];
           festivals.forEach(f => {
             if (f.name !== '生日') {
-              // 兼容 monthDay 和 date 两种字段名
               const dateValue = f.date || f.monthDay;
-              if (!dateValue) {
-                console.log(`  节日 ${f.name} 没有日期值，跳过`);
-                return;
-              }
+              if (!dateValue) return;
 
               const isLunar = f.type === 'lunar';
-              console.log(`  处理节日: name=${f.name}, dateValue=${dateValue}, type=${f.type}, isLunar=${isLunar}`);
-
               let month, day;
 
-              // 格式可能是 MM-DD 或 YYYY-MM-DD
               const parts = dateValue.split('-');
               if (parts.length === 3) {
                 month = parseInt(parts[1]);
@@ -143,14 +113,9 @@ const Calendar = () => {
                 day = parseInt(parts[1]);
               }
 
-              console.log(`  解析: month=${month}, day=${day}`);
-
               if (month && day) {
-                // 农历节日需要转换
                 if (isLunar) {
-                  console.log(`  农历转换: lunarMonth=${month}, lunarDay=${day}, year=${year}`);
                   const solar = lunarToSolar(month, day, year);
-                  console.log(`  转换结果:`, solar);
                   if (solar) {
                     month = solar.month;
                     day = solar.day;
@@ -158,14 +123,20 @@ const Calendar = () => {
                 }
 
                 if (month && day) {
-                  days.push({
-                    month,
-                    day,
-                    type: 'holiday',
-                    name: `${friend.name}-${f.name}`,
-                    friendId: friend.id,
-                    isLunar
-                  });
+                  // 使用节日名称作为 key 去重
+                  const holidayKey = `${month}-${day}-${f.name}`;
+                  if (!holidayMap.has(holidayKey)) {
+                    holidayMap.set(holidayKey, true);
+                    days.push({
+                      month,
+                      day,
+                      type: 'holiday',
+                      displayName: f.name,  // 只显示节日名称，不显示人名
+                      holidayName: f.name,
+                      friendId: friend.id,
+                      isLunar
+                    });
+                  }
                 }
               }
             }
@@ -241,11 +212,6 @@ const Calendar = () => {
     return specialDays.find(sd => sd.month === month && sd.day === day);
   };
 
-  const getPresetSolarHoliday = (day) => {
-    const key = `${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-    return PRESET_SOLAR_HOLIDAYS[key];
-  };
-
   const isToday = (day) => {
     const today = new Date();
     return (
@@ -255,25 +221,26 @@ const Calendar = () => {
     );
   };
 
-  // 获取当月所有特殊日期列表（朋友的 + 预设节日）
-  const currentMonthSpecialDaysRaw = specialDays.filter(sd => sd.month === month);
-  const presetDays = Object.entries(PRESET_SOLAR_HOLIDAYS)
-    .filter(([key]) => parseInt(key.split('-')[0]) === month)
-    .map(([key, name]) => {
-      const [m, d] = key.split('-');
-      return {
-        month: parseInt(m),
-        day: parseInt(d),
-        type: 'preset',
-        name: name,
-        friendId: null,
-        isLunar: false
-      };
-    });
+  const currentMonthSpecialDays = specialDays.filter(sd => sd.month === month);
 
-  console.log('【Calendar】当月特殊日期:', { month, friendDays: currentMonthSpecialDaysRaw.length, presetDays: presetDays.length });
+  // 点击日期查看详情
+  const handleDateClick = async (day) => {
+    const dayRecords = recordsByDate[day] || [];
 
-  const currentMonthSpecialDays = [...currentMonthSpecialDaysRaw, ...presetDays];
+    if (dayRecords.length === 0) return;
+
+    // 获取选中日期的记录详情
+    const recordsWithDetails = dayRecords.map(record => ({
+      id: record.id,
+      date: record.created_at?.split('T')[0] || '',
+      time: record.created_at ? new Date(record.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '',
+      summary: record.summary || record.transcript || '暂无摘要',
+      people: record.people || [],
+      tags: record.tags || []
+    })).sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
+
+    setSelectedDate({ day, records: recordsWithDetails });
+  };
 
   return (
     <div className="min-h-screen bg-warm-cream px-5 pt-8 pb-24 relative overflow-hidden">
@@ -329,9 +296,7 @@ const Calendar = () => {
           ))}
           {days.map((day) => {
             const friendDay = getSpecialDayForDate(day);
-            const presetHoliday = getPresetSolarHoliday(day);
             const hasFriendDay = !!friendDay;
-            const hasPresetHoliday = !!presetHoliday;
             const dayRecords = recordsByDate[day] || [];
             const hasRecords = dayRecords.length > 0;
             const currentToday = isToday(day);
@@ -339,15 +304,18 @@ const Calendar = () => {
             return (
               <motion.div
                 key={day}
-                className={`h-12 rounded-2xl flex flex-col items-center justify-center relative transition-all duration-300 ${
+                className={`h-12 rounded-2xl flex flex-col items-center justify-center relative transition-all duration-300 cursor-pointer ${
                   currentToday
                     ? "bg-warm-yellow ring-2 ring-warm-yellow ring-offset-1"
-                    : hasFriendDay || hasPresetHoliday
+                    : hasFriendDay
                     ? "bg-warm-pink/40"
+                    : hasRecords
+                    ? "bg-warm-purple/10"
                     : "bg-gray-50 hover:bg-warm-yellow/20"
                 }`}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: hasRecords ? 1.05 : 1 }}
+                whileTap={{ scale: hasRecords ? 0.95 : 1 }}
+                onClick={() => handleDateClick(day)}
               >
                 <span
                   className={`text-sm ${
@@ -360,20 +328,15 @@ const Calendar = () => {
 
                 {hasFriendDay && (
                   <div className="absolute -top-1 -right-1">
-                    <Cake className="w-4 h-4 text-warm-purple" />
+                    {friendDay.isLunar ? (
+                      <Flower className="w-4 h-4 text-warm-purple" />
+                    ) : (
+                      <Cake className="w-4 h-4 text-warm-purple" />
+                    )}
                   </div>
                 )}
 
-                {hasPresetHoliday && !hasFriendDay && (
-                  <div className="absolute -top-1 -right-1">
-                    <Star
-                      className="w-4 h-4 text-warm-yellow"
-                      fill="#FFE082"
-                    />
-                  </div>
-                )}
-
-                {hasRecords && !hasFriendDay && !hasPresetHoliday && (
+                {hasRecords && !hasFriendDay && (
                   <div className="absolute -bottom-0.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-warm-purple" />
                   </div>
@@ -406,13 +369,13 @@ const Calendar = () => {
                   {sd.type === 'birthday' ? (
                     <Cake className="w-6 h-6 text-warm-purple" />
                   ) : (
-                    <Star className="w-6 h-6 text-warm-purple" />
+                    <Flower className="w-6 h-6 text-warm-purple" />
                   )}
                 </div>
                 <div className="flex-1">
                   <h4 className="text-warm-purple mb-1 tracking-wide">
-                    {sd.name}
-                    {sd.isLunar && (
+                    {sd.displayName}
+                    {sd.isLunar && sd.type === 'birthday' && (
                       <span className="ml-2 text-xs text-gray-400">(农历)</span>
                     )}
                   </h4>
@@ -429,6 +392,97 @@ const Calendar = () => {
           </div>
         )}
       </div>
+
+      {/* 日期详情弹窗 */}
+      <AnimatePresence>
+        {selectedDate && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl w-full max-w-md max-h-[80vh] overflow-hidden shadow-2xl"
+            >
+              {/* 头部 */}
+              <div className="flex items-center justify-between px-6 py-4 border-b">
+                <h2 className="text-xl font-semibold text-gray-800">
+                  {selectedDate.day}日互动记录
+                </h2>
+                <button
+                  onClick={() => setSelectedDate(null)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              {/* 时间轴记录列表 */}
+              <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+                {selectedDate.records.length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedDate.records.map((record, index) => (
+                      <div key={record.id} className="relative pl-6 pb-4 last:pb-0">
+                        {/* 时间轴线 */}
+                        {index < selectedDate.records.length - 1 && (
+                          <div className="absolute left-[5px] top-6 bottom-0 w-0.5 bg-warm-purple/20" />
+                        )}
+                        {/* 时间轴点 */}
+                        <div className="absolute left-0 top-1 w-3 h-3 rounded-full bg-warm-purple border-2 border-white shadow" />
+
+                        {/* 记录内容 */}
+                        <div className="bg-warm-cream rounded-xl p-4">
+                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                            <Clock className="w-3 h-3" />
+                            <span>{record.time}</span>
+                          </div>
+
+                          <p className="text-gray-700 mb-2">{record.summary}</p>
+
+                          {/* 人物 */}
+                          {record.people.length > 0 && (
+                            <div className="flex items-center gap-1 mb-2">
+                              <Users className="w-3 h-3 text-gray-400" />
+                              <div className="flex gap-1 flex-wrap">
+                                {record.people.map((person, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-0.5 bg-warm-purple/10 text-warm-purple rounded-full text-xs"
+                                  >
+                                    {person}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 标签 */}
+                          {record.tags.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <Tag className="w-3 h-3 text-gray-400" />
+                              {record.tags.map((tag, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 bg-warm-yellow/30 text-warm-purple rounded-full text-xs"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>该日期没有互动记录</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

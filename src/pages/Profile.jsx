@@ -24,6 +24,7 @@ import {
   deletePersonTag,
   deleteEventTag,
 } from "../services/tags";
+import { getRecordsByDateRange } from "../services/records";
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("settings");
@@ -36,17 +37,57 @@ const Profile = () => {
   const [newEventTag, setNewEventTag] = useState("");
   const [showAddPersonInput, setShowAddPersonInput] = useState(false);
   const [showAddEventInput, setShowAddEventInput] = useState(false);
+  const [monthlyStats, setMonthlyStats] = useState({
+    totalInteractions: 0,
+    topFriends: []
+  });
+  const [loadingSummary, setLoadingSummary] = useState(false);
   const navigate = useNavigate();
 
-  // 模拟数据
-  const monthlyStats = {
-    totalInteractions: 42,
-    topFriends: [
-      { name: "小明", count: 12 },
-      { name: "妈妈", count: 8 },
-      { name: "小红", count: 6 },
-    ],
+  // 获取最近30天的月度统计
+  const loadMonthlyStats = async () => {
+    setLoadingSummary(true);
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+
+      const records = await getRecordsByDateRange(startDate, endDate);
+
+      // 统计总互动次数
+      const totalInteractions = records.length;
+
+      // 按朋友分组统计
+      const friendCounts = {};
+      records.forEach(record => {
+        const people = record.people || [];
+        people.forEach(person => {
+          if (person) {
+            friendCounts[person] = (friendCounts[person] || 0) + 1;
+          }
+        });
+      });
+
+      // 排序并取前5名
+      const topFriends = Object.entries(friendCounts)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      setMonthlyStats({ totalInteractions, topFriends });
+    } catch (err) {
+      console.error('获取月度统计失败:', err);
+      setMonthlyStats({ totalInteractions: 0, topFriends: [] });
+    } finally {
+      setLoadingSummary(false);
+    }
   };
+
+  useEffect(() => {
+    if (activeTab === "summary") {
+      loadMonthlyStats();
+    }
+  }, [activeTab]);
 
   // 加载标签
   const loadTags = async () => {
@@ -178,77 +219,59 @@ const Profile = () => {
   };
 
   const renderSettings = () => (
-    <div className="space-y-4">
-      {/* 数据管理 */}
-      <div className="bg-white rounded-3xl shadow-lg p-6 shadow-warm-purple/5">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 tracking-wide">
-          数据管理
-        </h3>
-        <motion.button
-          onClick={showExportOptions}
-          disabled={isExporting}
-          className="w-full flex items-center justify-between p-4 bg-warm-cream rounded-2xl hover:bg-warm-yellow/30 transition-all disabled:opacity-50"
-          whileTap={{ scale: 0.98 }}
-        >
-          <div className="flex items-center gap-3">
-            <Download className="h-5 w-5 text-warm-purple" />
-            <span className="text-gray-700 tracking-wide">
-              {isExporting ? "导出中..." : "一键导出数据"}
-            </span>
-          </div>
-          <ChevronRight className="h-5 w-5 text-warm-purple" />
-        </motion.button>
-      </div>
+    <div className="space-y-3">
+      <motion.button
+        onClick={showExportOptions}
+        disabled={isExporting}
+        className="w-full flex items-center justify-between p-4 bg-white rounded-2xl shadow-md shadow-warm-purple/10 hover:shadow-lg hover:shadow-warm-purple/20 transition-all disabled:opacity-50"
+        whileTap={{ scale: 0.98 }}
+      >
+        <div className="flex items-center gap-3">
+          <Download className="h-5 w-5 text-warm-purple" />
+          <span className="text-gray-700 tracking-wide">
+            {isExporting ? "导出中..." : "一键导出数据"}
+          </span>
+        </div>
+        <ChevronRight className="h-5 w-5 text-warm-purple" />
+      </motion.button>
 
-      {/* AI设置 */}
-      <div className="bg-white rounded-3xl shadow-lg p-6 shadow-warm-purple/5">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 tracking-wide">
-          AI设置
-        </h3>
-        <motion.button
-          onClick={handleAIConfig}
-          className="w-full flex items-center justify-between p-4 bg-warm-cream rounded-2xl hover:bg-warm-yellow/30 transition-all"
-          whileTap={{ scale: 0.98 }}
-        >
-          <div className="flex items-center gap-3">
-            <Settings className="h-5 w-5 text-warm-purple" />
-            <span className="text-gray-700 tracking-wide">AI接口配置</span>
-          </div>
-          <ChevronRight className="h-5 w-5 text-warm-purple" />
-        </motion.button>
-      </div>
+      <motion.button
+        onClick={handleAIConfig}
+        className="w-full flex items-center justify-between p-4 bg-white rounded-2xl shadow-md shadow-warm-purple/10 hover:shadow-lg hover:shadow-warm-purple/20 transition-all"
+        whileTap={{ scale: 0.98 }}
+      >
+        <div className="flex items-center gap-3">
+          <Settings className="h-5 w-5 text-warm-purple" />
+          <span className="text-gray-700 tracking-wide">AI接口配置</span>
+        </div>
+        <ChevronRight className="h-5 w-5 text-warm-purple" />
+      </motion.button>
 
-      {/* 帮助与反馈 */}
-      <div className="bg-white rounded-3xl shadow-lg p-6 shadow-warm-purple/5">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 tracking-wide">
-          帮助与反馈
-        </h3>
-        <motion.button
-          className="w-full flex items-center justify-between p-4 bg-warm-cream rounded-2xl hover:bg-warm-yellow/30 transition-all mb-3"
-          whileTap={{ scale: 0.98 }}
-        >
-          <div className="flex items-center gap-3">
-            <HelpCircle className="h-5 w-5 text-warm-purple" />
-            <span className="text-gray-700 tracking-wide">帮助中心</span>
-          </div>
-          <ChevronRight className="h-5 w-5 text-warm-purple" />
-        </motion.button>
+      <motion.button
+        className="w-full flex items-center justify-between p-4 bg-white rounded-2xl shadow-md shadow-warm-purple/10 hover:shadow-lg hover:shadow-warm-purple/20 transition-all"
+        whileTap={{ scale: 0.98 }}
+      >
+        <div className="flex items-center gap-3">
+          <HelpCircle className="h-5 w-5 text-warm-purple" />
+          <span className="text-gray-700 tracking-wide">帮助中心</span>
+        </div>
+        <ChevronRight className="h-5 w-5 text-warm-purple" />
+      </motion.button>
 
-        <motion.button
-          onClick={handleSignOut}
-          disabled={isSigningOut}
-          className="w-full flex items-center justify-between p-4 bg-warm-pink/20 rounded-2xl hover:bg-warm-pink/30 transition-all"
-          whileTap={{ scale: 0.98 }}
-        >
-          <div className="flex items-center gap-3">
-            <LogOut className="h-5 w-5 text-red-500" />
-            <span className="text-red-600 tracking-wide">
-              {isSigningOut ? "退出中..." : "退出登录"}
-            </span>
-          </div>
-          <ChevronRight className="h-5 w-5 text-red-500" />
-        </motion.button>
-      </div>
+      <motion.button
+        onClick={handleSignOut}
+        disabled={isSigningOut}
+        className="w-full flex items-center justify-between p-4 bg-white rounded-2xl shadow-md shadow-warm-purple/10 hover:shadow-lg hover:shadow-warm-purple/20 transition-all"
+        whileTap={{ scale: 0.98 }}
+      >
+        <div className="flex items-center gap-3">
+          <LogOut className="h-5 w-5 text-red-500" />
+          <span className="text-red-600 tracking-wide">
+            {isSigningOut ? "退出中..." : "退出登录"}
+          </span>
+        </div>
+        <ChevronRight className="h-5 w-5 text-red-500" />
+      </motion.button>
     </div>
   );
 
@@ -259,43 +282,59 @@ const Profile = () => {
           <BarChart3 className="h-5 w-5 text-warm-purple" />
           本月统计
         </h3>
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-warm-cream rounded-2xl p-4 text-center">
-            <p className="text-2xl font-bold text-warm-purple">
-              {monthlyStats.totalInteractions}
-            </p>
-            <p className="text-sm text-gray-600">总互动次数</p>
-          </div>
-          <div className="bg-warm-cream rounded-2xl p-4 text-center">
-            <p className="text-2xl font-bold text-warm-purple">
-              {monthlyStats.topFriends.length}
-            </p>
-            <p className="text-sm text-gray-600">活跃好友</p>
-          </div>
-        </div>
 
-        <h4 className="font-medium text-gray-700 mb-3 tracking-wide">
-          交流最多的小伙伴
-        </h4>
-        <div className="space-y-3">
-          {monthlyStats.topFriends.map((friend, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-3 p-3 bg-warm-cream rounded-2xl"
-            >
-              <div className="w-10 h-10 bg-warm-yellow rounded-full flex items-center justify-center">
-                <span className="text-white font-medium">
-                  {friend.name.charAt(0)}
-                </span>
+        {loadingSummary ? (
+          <div className="text-center py-8">
+            <div className="animate-spin h-6 w-6 border-2 border-warm-purple border-t-transparent rounded-full mx-auto mb-3"></div>
+            <p className="text-gray-500">加载中...</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-warm-cream rounded-2xl p-4 text-center">
+                <p className="text-2xl font-bold text-warm-purple">
+                  {monthlyStats.totalInteractions}
+                </p>
+                <p className="text-sm text-gray-600">总互动次数</p>
               </div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-800">{friend.name}</p>
-                <p className="text-sm text-gray-600">{friend.count} 次互动</p>
+              <div className="bg-warm-cream rounded-2xl p-4 text-center">
+                <p className="text-2xl font-bold text-warm-purple">
+                  {monthlyStats.topFriends.length}
+                </p>
+                <p className="text-sm text-gray-600">活跃好友</p>
               </div>
-              <span className="text-warm-purple font-medium">#{index + 1}</span>
             </div>
-          ))}
-        </div>
+
+            <h4 className="font-medium text-gray-700 mb-3 tracking-wide">
+              交流最多的小伙伴
+            </h4>
+            {monthlyStats.topFriends.length > 0 ? (
+              <div className="space-y-3">
+                {monthlyStats.topFriends.map((friend, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-3 p-3 bg-warm-cream rounded-2xl"
+                  >
+                    <div className="w-10 h-10 bg-warm-yellow rounded-full flex items-center justify-center">
+                      <span className="text-white font-medium">
+                        {friend.name.charAt(0)}
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-800">{friend.name}</p>
+                      <p className="text-sm text-gray-600">{friend.count} 次互动</p>
+                    </div>
+                    <span className="text-warm-purple font-medium">#{index + 1}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-gray-400">
+                <p>本月暂无互动记录</p>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

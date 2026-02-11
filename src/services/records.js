@@ -245,3 +245,42 @@ export async function getRecordsByPerson(personName) {
 
   return data || [];
 }
+
+/**
+ * 更新记录的核心信息（摘要、标签、人物）
+ * @param {string} id - 记录ID
+ * @param {Object} updates - 更新的字段
+ * @returns {Promise<Object>} 更新后的记录
+ */
+export async function updateRecordInfo(id, updates) {
+  const { data, error } = await supabase
+    .from('records')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('更新记录信息失败:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * 删除记录
+ * @param {string} id - 记录ID
+ * @returns {Promise<void>}
+ */
+export async function deleteRecordById(id) {
+  const { error } = await supabase
+    .from('records')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('删除记录失败:', error);
+    throw error;
+  }
+}

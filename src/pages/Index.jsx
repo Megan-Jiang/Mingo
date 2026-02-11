@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Mic, Image as ImageIcon, FileText, Tag, Clock, AlertCircle } from "lucide-react";
+import { Mic, FileText, Tag, Clock, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CloudDeco, StarDeco, HeartDeco } from "../components/DecoElements";
 import { EmptyState } from "../components/EmptyState";
@@ -10,7 +10,6 @@ import { getFriendsByNames } from "../services/friends";
 import { getEventTagNames } from "../services/tags";
 import RecordButton from "../components/RecordButton";
 import RecentRecords from "../components/RecentRecords";
-import ImageUpload from "../components/ImageUpload";
 import TextInput from "../components/TextInput";
 
 const Index = () => {
@@ -24,7 +23,6 @@ const Index = () => {
     stopRecording,
     resetRecording
   } = useRecorder();
-  const [showImageUpload, setShowImageUpload] = useState(false);
   const [showTextInput, setShowTextInput] = useState(false);
   const [hasRecorded, setHasRecorded] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -324,14 +322,6 @@ const Index = () => {
         {/* 其他输入方式 */}
         <div className="flex gap-3">
           <motion.button
-            className="flex-1 bg-warm-pink/30 hover:bg-warm-pink/50 rounded-2xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-300"
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setShowImageUpload(true)}
-          >
-            <ImageIcon className="w-5 h-5 text-warm-purple" />
-            <span className="text-sm text-warm-purple">上传图片</span>
-          </motion.button>
-          <motion.button
             className="flex-1 bg-warm-yellow/30 hover:bg-warm-yellow/50 rounded-2xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-300"
             whileTap={{ scale: 0.98 }}
             onClick={() => setShowTextInput(true)}
@@ -478,11 +468,6 @@ const Index = () => {
         </h3>
         <RecentRecords />
       </div>
-
-      {/* 图片上传弹窗 */}
-      {showImageUpload && (
-        <ImageUpload onClose={() => setShowImageUpload(false)} />
-      )}
 
       {/* 文本输入弹窗 */}
       {showTextInput && (

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Calendar, Tag, Plus, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { updateFriend } from '../services/friends';
+import { updateFriend, createFriend } from '../services/friends';
 import { getPersonTags, createPersonTag } from '../services/tags';
 
 // 预设节日列表（包含月日）
@@ -130,13 +130,21 @@ const PersonEditDialog = ({ person, onClose, onSave }) => {
         });
       }
 
-      await updateFriend(person.id, {
+      const friendData = {
         name: formData.name,
         remark: formData.remark,
         tags: formData.tags,
         birthday: formData.birthday ? formData.birthday + '-01' : null,
         important_dates: allDates
-      });
+      };
+
+      if (person && person.id) {
+        // 编辑现有朋友
+        await updateFriend(person.id, friendData);
+      } else {
+        // 创建新朋友
+        await createFriend(friendData);
+      }
 
       onSave && onSave();
       onClose();

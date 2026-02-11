@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Clock, Users, Tag, Play, AlertCircle, Plus } from "lucide-react";
 import { motion } from "framer-motion";
-import { getRecords, updateRecordFriendId } from "../services/records";
+import { getRecords, updateRecordFriendId, deleteRecordById } from "../services/records";
 import { createFriend, updateFriendLastInteraction } from "../services/friends";
 import { EmptyState } from "./EmptyState";
 import RecordDetail from "./RecordDetail";
@@ -105,6 +105,27 @@ const RecentRecords = ({ records: propRecords, onRefresh }) => {
     }
   };
 
+  // 编辑记录后刷新
+  const handleRecordEdit = async () => {
+    try {
+      const data = await getRecords({ limit: 10 });
+      setRecords(data || []);
+    } catch (err) {
+      console.error('刷新记录失败:', err);
+    }
+  };
+
+  // 删除记录
+  const handleDeleteRecord = async (recordId) => {
+    try {
+      await deleteRecordById(recordId);
+      setRecords(records.filter(r => r.id !== recordId));
+    } catch (err) {
+      console.error('删除记录失败:', err);
+      alert('删除失败，请重试');
+    }
+  };
+
   const displayRecords = records.length > 0 ? records : null;
 
   return (
@@ -150,7 +171,7 @@ const RecentRecords = ({ records: propRecords, onRefresh }) => {
               >
                 {/* 未归档提示 */}
                 {hasUnarchived && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1 text-red-500 text-xs bg-red-50 px-2 py-1 rounded-full">
+                  <div className="absolute top-2 left-20 flex items-center gap-1 text-red-500 text-xs bg-red-50 px-2 py-1 rounded-full z-10">
                     <AlertCircle className="w-3 h-3" />
                     <span>人物未归档</span>
                   </div>
@@ -164,69 +185,73 @@ const RecentRecords = ({ records: propRecords, onRefresh }) => {
                 }`} />
 
                 <div className="flex gap-3 ml-3">
-                  {/* 头像 */}
-                  <div className="w-12 h-12 rounded-full border-2 border-warm-yellow/50 bg-warm-cream flex items-center justify-center flex-shrink-0">
-                    {people.length > 0 ? (
-                      <span className="text-warm-purple font-medium">
-                        {people[0].charAt(0)}
-                      </span>
-                    ) : (
-                      <Users className="w-5 h-5 text-gray-400" />
-                    )}
+                  {/* 左侧：头像 + 姓名 */}
+                  <div className="w-16 flex-shrink-0 flex flex-col items-center">
+                    <div className="w-12 h-12 rounded-full border-2 border-warm-yellow/50 bg-warm-cream flex items-center justify-center mb-1">
+                      {people.length > 0 ? (
+                        <span className="text-warm-purple font-medium">
+                          {people[0].charAt(0)}
+                        </span>
+                      ) : (
+                        <Users className="w-5 h-5 text-gray-400" />
+                      )}
+                    </div>
+                    <h4 className="text-xs text-warm-purple font-medium tracking-wide text-center line-clamp-2">
+                      {people.length > 0 ? people.join(", ") : "未知"}
+                    </h4>
                   </div>
 
-                  {/* 内容 */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <h4 className="text-warm-purple font-medium tracking-wide">
-                        {people.length > 0 ? people.join(", ") : "未知"}
-                      </h4>
-                      <div className="flex items-center gap-1 text-xs text-gray-400">
-                        <Clock className="w-3 h-3" />
-                        <span>{relativeTime || timeStr}</span>
-                      </div>
-                    </div>
-
-                    <p className="text-sm text-gray-600 mb-2 leading-relaxed line-clamp-2 tracking-wide">
+                  {/* 右侧 */}
+                  <div className="flex-1 min-w-0 flex flex-col">
+                    {/* 右侧上方：摘要 */}
+                    <p className="text-sm text-gray-600 leading-relaxed line-clamp-2 tracking-wide mb-2">
                       {summary}
                     </p>
 
-                    {/* 未归档人物（可点击添加） */}
-                    {hasUnarchived && (
-                      <div className="flex gap-2 flex-wrap mb-2">
-                        {record.unarchived_people.map((person, idx) => {
-                          const stateKey = `${record.id}-${person}`;
-                          const isAdding = addingFriend === stateKey;
-                          return (
-                            <motion.button
-                              key={idx}
-                              onClick={() => handleAddToFriends(record, person)}
-                              disabled={isAdding}
-                              className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-600 rounded-full text-xs tracking-wide hover:bg-red-200 transition-colors"
-                              whileTap={{ scale: 0.95 }}
-                            >
-                              <Plus className="w-3 h-3" />
-                              {isAdding ? "添加中..." : `添加 ${person}`}
-                            </motion.button>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* 标签 */}
-                    {tags.length > 0 && (
+                    {/* 右侧下方：标签 + 时间 */}
+                    <div className="flex items-center justify-between mt-auto">
+                      {/* 标签 */}
                       <div className="flex gap-2 flex-wrap">
-                        {tags.slice(0, 3).map((tag, index) => (
+                        {/* 未归档人物（可点击添加） */}
+                        {hasUnarchived && (
+                          <div className="flex gap-2 flex-wrap">
+                            {record.unarchived_people.map((person, idx) => {
+                              const stateKey = `${record.id}-${person}`;
+                              const isAdding = addingFriend === stateKey;
+                              return (
+                                <motion.button
+                                  key={idx}
+                                  onClick={() => handleAddToFriends(record, person)}
+                                  disabled={isAdding}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs tracking-wide hover:bg-red-200 transition-colors"
+                                  whileTap={{ scale: 0.95 }}
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  {isAdding ? "..." : person}
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* 事件标签 */}
+                        {tags.slice(0, 2).map((tag, index) => (
                           <span
                             key={index}
-                            className="inline-flex items-center gap-1 px-3 py-1 bg-warm-purple/10 text-warm-purple rounded-full text-xs tracking-wide"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-warm-purple/10 text-warm-purple rounded-full text-xs tracking-wide"
                           >
                             <Tag className="w-3 h-3" />
                             {tag}
                           </span>
                         ))}
                       </div>
-                    )}
+
+                      {/* 时间 */}
+                      <div className="flex items-center gap-1 text-xs text-gray-400 flex-shrink-0 ml-2">
+                        <Clock className="w-3 h-3" />
+                        <span>{relativeTime || timeStr}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -240,6 +265,11 @@ const RecentRecords = ({ records: propRecords, onRefresh }) => {
         <RecordDetail
           record={selectedRecord}
           onClose={() => setSelectedRecord(null)}
+          onEdit={handleRecordEdit}
+          onDelete={() => {
+            setSelectedRecord(null);
+            handleDeleteRecord(selectedRecord.id);
+          }}
         />
       )}
     </div>

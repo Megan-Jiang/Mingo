@@ -1,101 +1,76 @@
 /**
- * AI 服务层 - 使用 StepFun API
+ * AI 服务层 - 使用 Supabase Edge Functions 代理 StepFun API
  *
  * 核心功能：
  * - 语音转写（使用 StepFun step-asr）
  * - 文本分析（使用 StepFun step-1-8k）
+ *
+ * 注意：API Key 已迁移到 Supabase Secrets，前端不再直接访问
  */
-
-// 从环境变量获取配置
-const whisperApiKey = import.meta.env.VITE_WHISPER_API_KEY;
-const whisperBaseUrl = import.meta.env.VITE_WHISPER_BASE_URL || 'https://api.stepfun.com/v1';
-const aiApiKey = import.meta.env.VITE_AI_API_KEY;
-const aiBaseUrl = import.meta.env.VITE_AI_BASE_URL || 'https://api.stepfun.com/v1';
-const aiModel = import.meta.env.VITE_AI_MODEL || 'step-1-8k';
-const whisperModel = import.meta.env.VITE_WHISPER_MODEL || 'step-asr';
 
 /**
- * 检查 AI 服务是否已配置
- * @returns {Object} 配置状态
+ * 调用后端代理（Edge Function）
+ * @param {string} functionName - Edge Function 名称
+ * @param {Object} body - 请求体
+ * @returns {Promise<any>} API 响应
  */
-export function getAIStatus() {
-  return {
-    whisperConfigured: !!whisperApiKey,
-    stepFunConfigured: !!aiApiKey,
-    configured: !!(whisperApiKey && aiApiKey)
-  };
-}
-
-/**
- * 抛出配置错误
- */
-function throwNotConfigured(service) {
-  throw new Error(`${service} 未配置，请先在 .env 文件中设置 VITE_${service}_API_KEY`);
-}
-
-/**
- * 调用 StepFun Chat API
- */
-async function callStepFunChat(messages, temperature = 0.3) {
-  if (!aiApiKey) {
-    throwNotConfigured('AI');
-  }
-
-  const response = await fetch(`${aiBaseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${aiApiKey}`
-    },
-    body: JSON.stringify({
-      model: aiModel,
-      messages: messages,
-      temperature: temperature
-    })
-  });
+async function callAIFunction(functionName, body) {
+  const response = await fetch(
+    `https://igvwczzfigslojxatpeb.supabase.co/functions/v1/${functionName}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify(body)
+    }
+  );
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('StepFun API 错误:', errorText);
-    throw new Error(`API 返回错误 ${response.status}: ${errorText}`);
+    console.error(`Edge Function ${functionName} 错误:`, errorText);
+    throw new Error(`AI 服务返回错误 ${response.status}: ${errorText}`);
   }
 
-  const result = await response.json();
-  return result.choices[0]?.message?.content || '';
+  return response.json();
 }
 
 /**
- * 语音转写 - 使用 StepFun step-asr
+ * 调用 StepFun Chat API（通过 Edge Function）
+ */
+async function callStepFunChat(messages, temperature = 0.3) {
+  const result = await callAIFunction('ai-chat', { messages, temperature });
+  return result.choices?.[0]?.message?.content || '';
+}
+
+/**
+ * 语音转写 - 使用 StepFun step-asr（通过 Edge Function）
  * @param {Blob} audioBlob - 音频文件
  * @returns {Promise<string>} 转写的文字
  */
 export async function transcribeAudio(audioBlob) {
-  if (!whisperApiKey) {
-    throwNotConfigured('WHISPER');
-  }
-
   try {
     const file = new File([audioBlob], 'recording.webm', { type: audioBlob.type || 'audio/webm' });
 
-    // 构建 FormData
-    const formData = new FormData();
-    formData.append('model', whisperModel);
-    formData.append('response_format', 'json');
-    formData.append('file', file);
-
     console.log('发起语音转写请求...', {
-      url: `${whisperBaseUrl}/audio/transcriptions`,
-      model: whisperModel,
+      model: 'step-asr',
       fileSize: file.size
     });
 
-    const response = await fetch(`${whisperBaseUrl}/audio/transcriptions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${whisperApiKey}`
-      },
-      body: formData
-    });
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(
+      'https://igvwczzfigslojxatpeb.supabase.co/functions/v1/ai-transcribe',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: formData
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();

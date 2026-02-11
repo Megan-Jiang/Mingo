@@ -22,10 +22,6 @@ const RecordButton = ({ isRecording, recordingTime, onStart, onStop }) => {
       {isRecording && (
         <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full animate-ping"></div>
       )}
-      
-      <p className="mt-4 text-sm text-gray-600">
-        {isRecording ? '点击停止录音' : '点击开始录音'}
-      </p>
     </div>
   );
 };

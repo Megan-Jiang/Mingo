@@ -5,6 +5,7 @@ import { StarDeco, HeartDeco } from "../components/DecoElements";
 import { EmptyState } from "../components/EmptyState";
 import PersonCard from "../components/PersonCard";
 import PersonDetail from "../components/PersonDetail";
+import PersonEditDialog from "../components/PersonEditDialog";
 import { getFriends } from "../services/friends";
 
 const People = () => {
@@ -12,6 +13,7 @@ const People = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPerson, setSelectedPerson] = useState(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
   const [error, setError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -64,6 +66,24 @@ const People = () => {
           setRefreshKey(prev => prev + 1);
         }}
         onUpdate={() => {
+          setRefreshKey(prev => prev + 1);
+        }}
+        onDelete={() => {
+          setSelectedPerson(null);
+          setRefreshKey(prev => prev + 1);
+        }}
+      />
+    );
+  }
+
+  // 添加朋友弹窗
+  if (showAddDialog) {
+    return (
+      <PersonEditDialog
+        person={null}
+        onClose={() => setShowAddDialog(false)}
+        onSave={() => {
+          setShowAddDialog(false);
           setRefreshKey(prev => prev + 1);
         }}
       />
@@ -204,6 +224,7 @@ const People = () => {
       {/* 添加朋友按钮 */}
       {!loading && !error && (
         <motion.button
+          onClick={() => setShowAddDialog(true)}
           className="fixed bottom-24 right-5 w-14 h-14 bg-warm-purple rounded-full shadow-lg shadow-warm-purple/30 flex items-center justify-center"
           whileTap={{ scale: 0.95 }}
           whileHover={{ scale: 1.05 }}

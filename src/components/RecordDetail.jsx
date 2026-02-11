@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { X, Clock, Users, Tag, Calendar, Play } from 'lucide-react';
+import { X, Clock, Users, Tag, Calendar, Play, Edit3, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import RecordEditDialog from './RecordEditDialog';
 
-const RecordDetail = ({ record, onClose }) => {
+const RecordDetail = ({ record, onClose, onEdit, onDelete }) => {
+  const [showEdit, setShowEdit] = useState(false);
+
   if (!record) return null;
 
   const { date, time } = formatDateTime(record.created_at);
@@ -10,6 +13,17 @@ const RecordDetail = ({ record, onClose }) => {
   const people = record.people || [];
   const tags = record.tags || [];
   const transcript = record.transcript || '';
+
+  if (showEdit) {
+    return (
+      <RecordEditDialog
+        record={record}
+        onClose={() => setShowEdit(false)}
+        onSave={onEdit}
+        onDelete={onDelete}
+      />
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -23,12 +37,21 @@ const RecordDetail = ({ record, onClose }) => {
           {/* 头部 */}
           <div className="flex items-center justify-between px-6 py-4 border-b">
             <h2 className="text-xl font-semibold text-gray-800">记录详情</h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowEdit(true)}
+                className="p-2 hover:bg-warm-purple/10 rounded-full transition-colors text-warm-purple"
+                title="编辑"
+              >
+                <Edit3 className="w-5 h-5" />
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
           </div>
 
           {/* 内容 */}
@@ -104,6 +127,19 @@ const RecordDetail = ({ record, onClose }) => {
 
           {/* 底部按钮 */}
           <div className="flex gap-3 px-6 py-4 border-t bg-gray-50">
+            {onDelete && (
+              <button
+                onClick={() => {
+                  if (window.confirm('确定要删除这条记录吗？此操作不可恢复。')) {
+                    onDelete();
+                  }
+                }}
+                className="px-4 py-3 border border-red-200 text-red-600 rounded-xl hover:bg-red-50 transition-colors flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                删除
+              </button>
+            )}
             <button
               onClick={onClose}
               className="flex-1 px-6 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-100 transition-colors"
