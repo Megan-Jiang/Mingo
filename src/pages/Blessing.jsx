@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Copy,
   X,
+  Download,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -16,6 +17,8 @@ import {
 import { EmptyState } from "../components/EmptyState";
 import { getBlessings, getFriendWithDetails, toggleBlessingCompleted } from "../services/friends";
 import { generateBlessing } from "../services/ai";
+import { createBlessing, getBlessings as getAllBlessings } from "../services/blessings";
+import { supabase } from "../lib/supabase";
 
 // 祝福语弹窗组件
 const BlessingDialog = ({ blessing, onClose, onConfirm }) => {
@@ -38,11 +41,13 @@ const BlessingDialog = ({ blessing, onClose, onConfirm }) => {
       // 获取朋友的详细信息（包含标签和互动记录）
       let tags = [];
       let recentRecords = [];
+      let remark = '';
       try {
         const friendDetails = await getFriendWithDetails(blessing.friend_id);
         tags = friendDetails.tags || [];
         recentRecords = friendDetails.recentRecords || [];
-        console.log('获取朋友详情成功', { tags, recentRecords });
+        remark = friendDetails.remark || '';
+        console.log('获取朋友详情成功', { tags, recentRecords, remark });
       } catch (err) {
         console.warn('获取朋友详情失败，使用默认信息', err);
       }
@@ -52,7 +57,8 @@ const BlessingDialog = ({ blessing, onClose, onConfirm }) => {
         blessing.holiday,
         blessing.type,
         tags,
-        recentRecords
+        recentRecords,
+        remark
       );
       console.log('生成成功:', text);
       setBlessingText(text);
@@ -161,9 +167,11 @@ const Blessing = () => {
   const [blessings, setBlessings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBlessing, setSelectedBlessing] = useState(null);
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
     loadBlessings();
+    getCurrentUser();
   }, []);
 
   const loadBlessings = async () => {
@@ -174,6 +182,13 @@ const Blessing = () => {
       console.error('加载祝福列表失败:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getCurrentUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      setUserId(user.id);
     }
   };
 
@@ -201,12 +216,63 @@ const Blessing = () => {
     }
   };
 
-  const handleGenerateBlessing = (text) => {
+  const handleGenerateBlessing = async (text) => {
     // 复制到剪贴板
     navigator.clipboard.writeText(text);
-    // 标记为已完成
+
+    // 保存祝福到数据库
     if (selectedBlessing) {
+      try {
+        await createBlessing({
+          user_id: userId,
+          friend_id: selectedBlessing.friend_id,
+          holiday_name: selectedBlessing.holiday,
+          blessing_text: text,
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        });
+        console.log('祝福已保存到数据库');
+      } catch (err) {
+        console.error('保存祝福失败:', err);
+      }
+
+      // 标记为已完成
       toggleCompleted(selectedBlessing.id);
+    }
+  };
+
+  // 导出所有祝福为JSON格式
+  const exportBlessings = async () => {
+    try {
+      const { data: blessings } = await supabase
+        .from('blessings')
+        .select('friend_id, holiday_name, blessing_text')
+        .eq('status', 'completed');
+
+      // 获取朋友名字
+      const { data: friends } = await supabase
+        .from('friends')
+        .select('id, name');
+
+      const friendMap = {};
+      friends?.forEach(f => { friendMap[f.id] = f.name; });
+
+      const exportData = blessings?.map(b => ({
+        name: friendMap[b.friend_id] || '未知',
+        holiday: b.holiday_name,
+        blessing: b.blessing_text
+      })) || [];
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `blessings_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('导出祝福失败:', err);
+      alert('导出失败，请重试');
     }
   };
 
@@ -223,18 +289,28 @@ const Blessing = () => {
       {/* 顶部标题和开关 */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl text-warm-purple tracking-wide">祝福</h1>
-        <motion.button
-          onClick={() => setShowCompleted(!showCompleted)}
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow-md shadow-warm-purple/8 transition-all hover:shadow-lg"
-          whileTap={{ scale: 0.95 }}
-        >
-          {showCompleted ? (
-            <ToggleRight className="w-5 h-5 text-warm-purple" />
-          ) : (
-            <ToggleLeft className="w-5 h-5 text-gray-400" />
-          )}
-          <span className="text-sm text-gray-600 tracking-wide">显示已完成</span>
-        </motion.button>
+        <div className="flex items-center gap-2">
+          <motion.button
+            onClick={exportBlessings}
+            className="p-2 rounded-full bg-white shadow-md shadow-warm-purple/8 transition-all hover:shadow-lg"
+            whileTap={{ scale: 0.95 }}
+            title="导出祝福"
+          >
+            <Download className="w-5 h-5 text-warm-purple" />
+          </motion.button>
+          <motion.button
+            onClick={() => setShowCompleted(!showCompleted)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow-md shadow-warm-purple/8 transition-all hover:shadow-lg"
+            whileTap={{ scale: 0.95 }}
+          >
+            {showCompleted ? (
+              <ToggleRight className="w-5 h-5 text-warm-purple" />
+            ) : (
+              <ToggleLeft className="w-5 h-5 text-gray-400" />
+            )}
+            <span className="text-sm text-gray-600 tracking-wide">显示已完成</span>
+          </motion.button>
+        </div>
       </div>
 
       {/* 祝福列表 */}

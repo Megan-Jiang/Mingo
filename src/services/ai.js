@@ -314,46 +314,62 @@ export async function processAudio(audioBlob) {
  * @param {Array} recentRecords - 最近互动记录（可选）
  * @returns {Promise<string>} 生成的祝福语
  */
-export async function generateBlessing(friendName, holiday, type = 'solar', tags = [], recentRecords = []) {
+export async function generateBlessing(friendName, holiday, type = 'solar', tags = [], recentRecords = [], remark = '', identity = '') {
   const typeText = type === 'lunar' ? '农历' : '';
+
+  // 计算称呼：优先使用备注，没有则用名字后两个字
+  const displayName = remark || (friendName.length > 2 ? friendName.slice(-2) : friendName);
 
   // 构建上下文信息
   let contextInfo = '';
+  if (remark) {
+    contextInfo += `\n- 备注称呼：${remark}`;
+  }
+  if (identity) {
+    contextInfo += `\n- 身份：${identity}`;
+  }
   if (tags && tags.length > 0) {
-    contextInfo += `\n朋友标签：${tags.join('、')}`;
+    contextInfo += `\n- 标签：${tags.join('、')}`;
   }
   if (recentRecords && recentRecords.length > 0) {
     const recordsSummary = recentRecords.map(r => {
-      const summary = r.summary || r.content || '';
-      return `- ${summary.slice(0, 50)}${summary.length > 50 ? '...' : ''}`;
+      const summary = r.summary || r.transcript || '';
+      return `- ${summary.slice(0, 80)}${summary.length > 80 ? '...' : ''}`;
     }).join('\n');
-    contextInfo += `\n最近互动：\n${recordsSummary}`;
+    contextInfo += `\n- 互动记录：\n${recordsSummary}`;
   }
 
   return await callStepFunChat([
     {
       role: 'system',
-      content: `你是一个走心、细腻、有分寸感的祝福语生成助手。
+      content: `你是一个温暖、细腻、有分寸感的祝福语生成助手，说话像真正关心对方的朋友。
 
-你的任务是根据提供的对象信息、关系、标签和互动经历，生成一段真正"像我发的"祝福，而不是模板化套话。
+请根据朋友的【备注称呼】、【身份】、【标签】和【互动经历】，生成一段贴合身份特点的节日祝福语。
 
-请为${typeText}${holiday}生成一段温馨祝福语。
-${contextInfo ? `\n【对方相关信息】\n${contextInfo}` : ''}
+核心要求：
+1. 必须结合对方"身份"来写，祝福内容要与其日常职责或阶段相关
+2. 必须融入至少一个具体互动细节或共同经历，让祝福有记忆点
+3. 语气自然真诚，不浮夸、不模板化
+4. 结合节日氛围，但避免堆砌传统套话
+5. 可适度表达感谢、支持或共同成长
+6. 控制在30-60字以内
+7. 只输出祝福语正文，不要添加解释或前缀
+8. 克制使用比喻等
+9. 适合通过微信或短信发送
+10. 优先使用备注称呼
+11.避免使用"还记得"进行回忆，直接描述当时观察到某个细节的感受或者心情即可。
 
-写作原则：
-1. 结合节日氛围（如新春偏温暖团圆，生日偏成长与陪伴等）
-2. 必须结合提供的具体信息（如身份、性格、共同经历、曾经的帮助等）
-3. 语气自然，像真实聊天发出的内容
-4. 不要堆砌成语，不要连续使用传统套话
-5. 控制在30-60字
-6. 允许轻微口语感，但不要随意
-7. 只输出祝福正文，不要任何解释或前缀
-
-如果有"曾帮助我""一起经历过某事"等信息，请优先融入表达感谢或共同成长的语境。`
+写作优先级：
+身份匹配度 > 互动细节 > 情绪温度 > 节日氛围`
     },
     {
       role: 'user',
-      content: `为 ${friendName} 生成${typeText}${holiday}祝福语`
+      content: `节日：${typeText}${holiday}
+
+朋友信息（请结合以下信息生成祝福）：
+${contextInfo}
+
+请为 ${friendName} 生成一段贴合身份、融入互动细节的${typeText}${holiday}祝福语。`
     }
   ], 0.7);
 }

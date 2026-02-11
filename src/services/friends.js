@@ -414,7 +414,7 @@ export async function getFriendWithDetails(friendId) {
   // 获取最近的互动记录（最近3条）
   const { data: records, error: recordsError } = await supabase
     .from('records')
-    .select('content, summary, tags, created_at')
+    .select('transcript, summary, tags, created_at')
     .eq('friend_id', friendId)
     .order('created_at', { ascending: false })
     .limit(3);
