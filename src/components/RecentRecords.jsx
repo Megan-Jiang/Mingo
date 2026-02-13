@@ -110,6 +110,15 @@ const RecentRecords = ({ records: propRecords, onRefresh }) => {
     try {
       const data = await getRecords({ limit: 10 });
       setRecords(data || []);
+      // 如果有选中的记录，更新它的引用
+      if (selectedRecord) {
+        const updatedRecord = data.find(r => r.id === selectedRecord.id);
+        if (updatedRecord) {
+          setSelectedRecord(updatedRecord);
+        }
+      }
+      // 发送事件通知其他组件刷新
+      window.dispatchEvent(new CustomEvent('recordUpdated'));
     } catch (err) {
       console.error('刷新记录失败:', err);
     }

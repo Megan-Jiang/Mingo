@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getCurrentUser } from './auth';
 
 /**
  * 祝福数据服务
@@ -7,7 +8,17 @@ import { supabase } from '../lib/supabase';
  * - 管理节日祝福任务
  * - 跟踪祝福状态（待发送/已完成）
  * - 存储生成的祝福语
+ * - 用户数据隔离
  */
+
+/**
+ * 获取当前用户的 ID
+ * @returns {Promise<string|null>} 用户 ID
+ */
+async function getUserId() {
+  const user = await getCurrentUser();
+  return user?.id || null;
+}
 
 /**
  * 获取当前用户的所有祝福任务
@@ -15,9 +26,13 @@ import { supabase } from '../lib/supabase';
  * @returns {Promise<Array>} 祝福任务列表
  */
 export async function getBlessings(options = {}) {
+  const userId = await getUserId();
+  if (!userId) return [];
+
   let query = supabase
     .from('blessings')
     .select('*')
+    .eq('user_id', userId)
     .order('created_at', { ascending: true });
 
   // 筛选未完成的
@@ -46,9 +61,12 @@ export async function getBlessings(options = {}) {
  * @returns {Promise<Object>} 创建的祝福任务
  */
 export async function createBlessing(blessing) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('用户未登录');
+
   const { data, error } = await supabase
     .from('blessings')
-    .insert([blessing])
+    .insert([{ ...blessing, user_id: userId }])
     .select()
     .single();
 
@@ -67,10 +85,26 @@ export async function createBlessing(blessing) {
  * @returns {Promise<Object>} 更新后的祝福任务
  */
 export async function updateBlessing(id, updates) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('用户未登录');
+
+  // 验证祝福任务属于当前用户
+  const { data: existing, error: fetchError } = await supabase
+    .from('blessings')
+    .select('id')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchError || !existing) {
+    throw new Error('祝福任务不存在或无权限修改');
+  }
+
   const { data, error } = await supabase
     .from('blessings')
     .update(updates)
     .eq('id', id)
+    .eq('user_id', userId)
     .select()
     .single();
 
@@ -99,10 +133,14 @@ export async function completeBlessing(id) {
  * @param {string} id - 祝福任务ID
  */
 export async function deleteBlessing(id) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('用户未登录');
+
   const { error } = await supabase
     .from('blessings')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .eq('user_id', userId);
 
   if (error) {
     console.error('删除祝福任务失败:', error);
@@ -116,12 +154,16 @@ export async function deleteBlessing(id) {
  * @returns {Promise<Array>} 祝福任务列表
  */
 export async function getUpcomingBlessings(days = 30) {
+  const userId = await getUserId();
+  if (!userId) return [];
+
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + days);
 
   const { data, error } = await supabase
     .from('blessings')
     .select('*')
+    .eq('user_id', userId)
     .eq('status', 'pending')
     .lte('holiday_date', futureDate.toISOString())
     .order('holiday_date', { ascending: true });

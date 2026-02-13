@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getCurrentUser } from './auth';
 
 /**
  * 朋友数据服务
@@ -6,16 +7,30 @@ import { supabase } from '../lib/supabase';
  * 核心逻辑：
  * - 增删改查朋友信息
  * - 支持标签、生日、重要节日等字段
+ * - 用户数据隔离
  */
+
+/**
+ * 获取当前用户的 ID
+ * @returns {Promise<string|null>} 用户 ID
+ */
+async function getUserId() {
+  const user = await getCurrentUser();
+  return user?.id || null;
+}
 
 /**
  * 获取当前用户的所有朋友
  * @returns {Promise<Array>} 朋友列表
  */
 export async function getFriends() {
+  const userId = await getUserId();
+  if (!userId) return [];
+
   const { data, error } = await supabase
     .from('friends')
     .select('*')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -32,10 +47,14 @@ export async function getFriends() {
  * @returns {Promise<Object>} 朋友详情
  */
 export async function getFriendById(id) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('用户未登录');
+
   const { data, error } = await supabase
     .from('friends')
     .select('*')
     .eq('id', id)
+    .eq('user_id', userId)
     .single();
 
   if (error) {
@@ -76,11 +95,15 @@ export async function createFriend(friend) {
  * @returns {Promise<Object>} 更新后的朋友
  */
 export async function updateFriend(id, updates) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('用户未登录');
+
   // 先获取原信息
   const { data: oldFriend, error: fetchError } = await supabase
     .from('friends')
     .select('*')
     .eq('id', id)
+    .eq('user_id', userId)
     .single();
 
   if (fetchError) {
@@ -93,6 +116,7 @@ export async function updateFriend(id, updates) {
     .from('friends')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('user_id', userId)
     .select()
     .single();
 
@@ -114,11 +138,15 @@ export async function updateFriend(id, updates) {
  * 同时更新 friend_id 关联的记录和 people 字段包含该名字的记录
  */
 async function syncFriendNameInRecords(friendId, oldName, newName) {
+  const userId = await getUserId();
+  if (!userId) return;
+
   // 1. 更新 friend_id 关联的记录
   const { data: friendRecords, error: fetchError1 } = await supabase
     .from('records')
     .select('*')
-    .eq('friend_id', friendId);
+    .eq('friend_id', friendId)
+    .eq('user_id', userId);
 
   if (fetchError1) {
     console.error('获取朋友关联记录失败:', fetchError1);
@@ -140,6 +168,7 @@ async function syncFriendNameInRecords(friendId, oldName, newName) {
   const { data: allRecords, error: fetchError2 } = await supabase
     .from('records')
     .select('*')
+    .eq('user_id', userId)
     .contains('people', [oldName]);
 
   if (fetchError2) {
@@ -166,10 +195,14 @@ async function syncFriendNameInRecords(friendId, oldName, newName) {
  * @param {string} recordId - 记录ID
  */
 export async function updateFriendLastInteraction(friendId, recordId) {
+  const userId = await getUserId();
+  if (!userId) return;
+
   const { error } = await supabase
     .from('friends')
     .update({ updated_at: new Date().toISOString() })
-    .eq('id', friendId);
+    .eq('id', friendId)
+    .eq('user_id', userId);
 
   if (error) {
     console.error('更新朋友最后互动时间失败:', error);
@@ -182,12 +215,16 @@ export async function updateFriendLastInteraction(friendId, recordId) {
  * @param {string} name - 朋友姓名（用于更新记录）
  */
 export async function deleteFriend(id, name) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('用户未登录');
+
   try {
     // 先将相关记录的 friend_id 设为 null，变成未归档
     const { data: records, error: fetchError } = await supabase
       .from('records')
       .select('id, people')
-      .eq('friend_id', id);
+      .eq('friend_id', id)
+      .eq('user_id', userId);
 
     if (fetchError) {
       console.error('获取相关记录失败:', fetchError);
@@ -214,7 +251,8 @@ export async function deleteFriend(id, name) {
   const { error } = await supabase
     .from('friends')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .eq('user_id', userId);
 
   if (error) {
     console.error('删除朋友失败:', error);
@@ -228,9 +266,13 @@ export async function deleteFriend(id, name) {
  * @returns {Promise<Array>} 匹配的朋友列表
  */
 export async function searchFriends(keyword) {
+  const userId = await getUserId();
+  if (!userId) return [];
+
   const { data, error } = await supabase
     .from('friends')
     .select('*')
+    .eq('user_id', userId)
     .or(`name.ilike.%${keyword}%,remark.ilike.%${keyword}%`);
 
   if (error) {
@@ -249,9 +291,13 @@ export async function searchFriends(keyword) {
 export async function getFriendsByNames(names) {
   if (!names || names.length === 0) return {};
 
+  const userId = await getUserId();
+  if (!userId) return {};
+
   const { data, error } = await supabase
     .from('friends')
     .select('*')
+    .eq('user_id', userId)
     .in('name', names);
 
   if (error) {
@@ -272,9 +318,13 @@ export async function getFriendsByNames(names) {
  * @returns {Promise<Array>} 按从近到远排序的祝福列表
  */
 export async function getBlessings() {
+  const userId = await getUserId();
+  if (!userId) return [];
+
   const { data, error } = await supabase
     .from('friends')
     .select('id, name, remark, important_dates, blessings_completed')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -364,11 +414,15 @@ export async function getBlessings() {
  * @param {boolean} completed - 完成状态
  */
 export async function toggleBlessingCompleted(friendId, holidayName, completed) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('用户未登录');
+
   // 先获取当前状态
   const { data: friend, error: fetchError } = await supabase
     .from('friends')
     .select('blessings_completed')
     .eq('id', friendId)
+    .eq('user_id', userId)
     .single();
 
   if (fetchError) {
@@ -385,7 +439,8 @@ export async function toggleBlessingCompleted(friendId, holidayName, completed) 
   const { error } = await supabase
     .from('friends')
     .update({ blessings_completed: completedStatus })
-    .eq('id', friendId);
+    .eq('id', friendId)
+    .eq('user_id', userId);
 
   if (error) {
     console.error('更新祝福状态失败:', error);
@@ -399,11 +454,15 @@ export async function toggleBlessingCompleted(friendId, holidayName, completed) 
  * @returns {Promise<Object>} 朋友详细信息
  */
 export async function getFriendWithDetails(friendId) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('用户未登录');
+
   // 获取朋友基本信息
   const { data: friend, error } = await supabase
     .from('friends')
     .select('*')
     .eq('id', friendId)
+    .eq('user_id', userId)
     .single();
 
   if (error) {
@@ -416,6 +475,7 @@ export async function getFriendWithDetails(friendId) {
     .from('records')
     .select('transcript, summary, tags, created_at')
     .eq('friend_id', friendId)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(3);
 

@@ -14,11 +14,22 @@ const RecordEditDialog = ({ record, onClose, onSave }) => {
       // 解析输入
       const peopleArray = people.split(',').map(p => p.trim()).filter(p => p);
       const tagsArray = tags.split(',').map(t => t.trim()).filter(t => t);
+      const oldPeople = record.people || [];
+
+      // 同步更新 unarchived_people（把旧的未归档人名替换成新的）
+      const unarchivedPeople = (record.unarchived_people || []).map(p => {
+        const index = oldPeople.indexOf(p);
+        if (index !== -1 && peopleArray[index]) {
+          return peopleArray[index];
+        }
+        return p;
+      });
 
       await updateRecordInfo(record.id, {
         summary,
         people: peopleArray,
-        tags: tagsArray
+        tags: tagsArray,
+        unarchived_people: unarchivedPeople
       });
 
       onSave && onSave();

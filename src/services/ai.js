@@ -104,17 +104,19 @@ export async function extractPeople(text) {
       content: `你是一个社交记录助手，负责从文本中提取涉及的人物姓名。
 请从以下转写内容中提取所有提及的人物姓名。
 规则：
-1. 只返回人物姓名，用中文逗号分隔
+1. 只返回人物姓名，用逗号分隔
 2. 不要返回称谓（如"朋友"、"同事"）
 3. 不要提取"我"，这是记录者本人
 4. 如果没有明确人物，返回空字符串
-5. 只返回纯文本，不要JSON格式`
+5. 只返回纯文本，如：张三,李四`
     },
     {
       role: 'user',
       content: text
     }
   ], 0.3);
+
+  console.log('extractPeople AI 返回:', result);
 
   return result.split(/[,，]/).map(s => s.trim()).filter(s => s.length > 0);
 }
@@ -239,6 +241,7 @@ export async function organizeTranscript(text, existingPeople = []) {
   let result;
   try {
     result = JSON.parse(content);
+    console.log('organizeTranscript JSON 解析成功:', result);
   } catch (parseError) {
     console.error('JSON解析失败，返回原文:', parseError);
     return { organizedText: text, people: existingPeople, tags: [] };
@@ -297,6 +300,8 @@ export async function processAudio(audioBlob) {
       people: results.people,
       tags: results.tags
     });
+
+    console.log('people 类型:', typeof results.people, Array.isArray(results.people));
 
     return results;
   } catch (error) {

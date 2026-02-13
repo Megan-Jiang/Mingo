@@ -49,8 +49,9 @@ const Login = () => {
         navigate('/');
       } else {
         await signUp(email, password);
-        setError('注册成功！请登录');
-        setIsLogin(true);
+        // 注册成功后自动登录
+        await signIn(email, password);
+        navigate('/');
       }
     } catch (err) {
       setError(err.message || '操作失败，请重试');

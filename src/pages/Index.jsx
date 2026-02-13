@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { getRecords } from "../services/records";
 import { Mic, FileText, Tag, Clock, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CloudDeco, StarDeco, HeartDeco } from "../components/DecoElements";
@@ -32,6 +33,7 @@ const Index = () => {
   const [generatedTags, setGeneratedTags] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [addedFriends, setAddedFriends] = useState([]);
+  const [editingPerson, setEditingPerson] = useState(null); // 当前编辑的人名
 
   const handleStartRecording = useCallback(async () => {
     setHasRecorded(false);
@@ -39,15 +41,14 @@ const Index = () => {
     await startRecording();
   }, [startRecording]);
 
-  const handleStopRecording = useCallback(() => {
-    stopRecording();
-    setHasRecorded(true);
-  }, [stopRecording]);
-
   // AI 转写处理（包含整理功能）
   const handleTranscribe = async () => {
-    if (!audioBlob) return;
+    if (!audioBlob) {
+      console.log('没有音频文件');
+      return;
+    }
 
+    console.log('开始转写...');
     setIsTranscribing(true);
     try {
       // 并行获取预设事件标签
@@ -92,7 +93,7 @@ const Index = () => {
       setGeneratedTags(tagsResult);
     } catch (err) {
       console.error("转写失败:", err);
-      if (err.message.includes("未配置")) {
+      if (err.message?.includes("未配置")) {
         alert(err.message);
       } else {
         alert(`转写失败: ${err.message}，请检查 API 配置`);
@@ -101,6 +102,43 @@ const Index = () => {
       setIsTranscribing(false);
     }
   };
+
+  const handleStopRecording = useCallback(() => {
+    console.log('录音停止');
+    stopRecording();
+    setHasRecorded(true);
+  }, [stopRecording]);
+
+  // 监听记录更新事件，同步 extractedPeople
+  useEffect(() => {
+    const handleRecordUpdate = async () => {
+      try {
+        // 获取最新的记录列表
+        const records = await getRecords({ limit: 5 });
+        if (records && records.length > 0) {
+          // 找到当前录音对应的记录（第一条），更新 extractedPeople
+          const latestRecord = records[0];
+          if (latestRecord.people && latestRecord.people.length > 0) {
+            console.log('同步 extractedPeople:', latestRecord.people);
+            setExtractedPeople(latestRecord.people);
+          }
+        }
+      } catch (err) {
+        console.error('同步数据失败:', err);
+      }
+    };
+
+    window.addEventListener('recordUpdated', handleRecordUpdate);
+    return () => window.removeEventListener('recordUpdated', handleRecordUpdate);
+  }, []);
+
+  // 监听 audioBlob 变化，自动转写
+  useEffect(() => {
+    if (hasRecorded && audioBlob && !transcript && !isTranscribing) {
+      console.log('检测到录音文件，开始转写');
+      handleTranscribe();
+    }
+  }, [hasRecorded, audioBlob, transcript, isTranscribing]);
 
   // 手动整理转写内容
   const handleOrganize = async () => {
@@ -260,6 +298,17 @@ const Index = () => {
 
   // 将人物添加为朋友
   const handleAddFriend = async (personName) => {
+    // 如果正在编辑人名，先使用编辑后的值更新状态
+    if (editingPerson && editingPerson.original === personName) {
+      personName = editingPerson.edited;
+      // 更新 extractedPeople 中的值
+      const newPeople = extractedPeople.map(p =>
+        p === editingPerson.original ? editingPerson.edited : p
+      );
+      setExtractedPeople(newPeople);
+      setEditingPerson(null);
+    }
+
     try {
       const { createFriend } = await import("../services/friends");
       await createFriend({
@@ -272,6 +321,27 @@ const Index = () => {
       console.error("添加朋友失败:", err);
       alert("添加朋友失败，请重试");
     }
+  };
+
+  // 开始编辑人名
+  const startEditPerson = (person) => {
+    setEditingPerson({ original: person, edited: person });
+  };
+
+  // 保存编辑后的人名
+  const saveEditedPerson = () => {
+    if (editingPerson && editingPerson.edited.trim()) {
+      const newPeople = extractedPeople.map(p =>
+        p === editingPerson.original ? editingPerson.edited.trim() : p
+      );
+      setExtractedPeople(newPeople);
+    }
+    setEditingPerson(null);
+  };
+
+  // 取消编辑人名
+  const cancelEditPerson = () => {
+    setEditingPerson(null);
   };
 
   return (
@@ -340,10 +410,20 @@ const Index = () => {
               exit={{ opacity: 0, height: 0 }}
               className="mt-6 overflow-hidden"
             >
-              {/* 播放器 */}
-              <div className="bg-warm-cream rounded-2xl p-4 mb-4">
-                <audio controls src={audioUrl} className="w-full" />
-              </div>
+              {/* 转写中状态 */}
+              {isTranscribing && (
+                <div className="bg-warm-purpleBg rounded-2xl p-6 mb-4 flex flex-col items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-warm-purple mb-2"></div>
+                  <p className="text-warm-purple text-sm">AI 正在转写中...</p>
+                </div>
+              )}
+
+              {/* 播放器（转写完成后显示） */}
+              {!isTranscribing && (
+                <div className="bg-warm-cream rounded-2xl p-4 mb-4">
+                  <audio controls src={audioUrl} className="w-full" />
+                </div>
+              )}
 
               {/* 转写结果显示 */}
               {transcript && (
@@ -376,31 +456,82 @@ const Index = () => {
                           <div className="flex flex-wrap gap-2">
                             {extractedPeople.map((person, idx) => {
                               const isAdded = addedFriends.includes(person);
-                              return (
-                                <div key={idx} className="flex items-center gap-1">
-                                  <span className={`px-3 py-1 rounded-full text-sm ${
-                                    isAdded
-                                      ? "bg-green-100 text-green-700"
-                                      : "bg-warm-purpleBg text-warm-purple"
-                                  }`}>
-                                    {person}
-                                    {isAdded && (
+                              const isEditing = editingPerson?.original === person;
+
+                              // 如果已添加，显示原始人名
+                              if (isAdded) {
+                                return (
+                                  <div key={idx} className="flex items-center gap-1">
+                                    <span className="px-3 py-1 rounded-full text-sm bg-green-100 text-green-700">
+                                      {person}
                                       <span className="ml-1 text-xs">✓</span>
-                                    )}
-                                  </span>
-                                  {!isAdded && (
+                                    </span>
+                                  </div>
+                                );
+                              }
+
+                              // 如果正在编辑
+                              if (isEditing) {
+                                return (
+                                  <div key={idx} className="flex items-center gap-1">
+                                    <input
+                                      type="text"
+                                      value={editingPerson.edited}
+                                      onChange={(e) => setEditingPerson({
+                                        ...editingPerson,
+                                        edited: e.target.value
+                                      })}
+                                      className="px-2 py-1 border border-warm-purple rounded-lg text-sm w-20 focus:outline-none focus:ring-1 focus:ring-warm-purple"
+                                      autoFocus
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveEditedPerson();
+                                        if (e.key === 'Escape') cancelEditPerson();
+                                      }}
+                                    />
                                     <button
-                                      onClick={() => handleAddFriend(person)}
-                                      className="p-1 text-warm-purple hover:text-warm-purpleLight"
-                                      title="添加为朋友"
+                                      onClick={saveEditedPerson}
+                                      className="p-1 text-green-600 hover:text-green-700"
+                                      title="保存"
                                     >
-                                      <Tag className="h-4 w-4" />
+                                      ✓
                                     </button>
-                                  )}
+                                    <button
+                                      onClick={cancelEditPerson}
+                                      className="p-1 text-red-600 hover:text-red-700"
+                                      title="取消"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                );
+                              }
+
+                              // 显示编辑后的人名（优先显示最新编辑的值）
+                              const displayPerson = editingPerson?.original === person
+                                ? editingPerson.edited
+                                : person;
+
+                              return (
+                                <div key={idx} className="flex items-center gap-1 group">
+                                  <span
+                                    onClick={() => startEditPerson(person)}
+                                    className="px-3 py-1 rounded-full text-sm bg-warm-purpleBg text-warm-purple cursor-pointer hover:bg-warm-purple/20"
+                                    title="点击修改人名"
+                                  >
+                                    {displayPerson}
+                                  </span>
+                                  <button
+                                    onClick={() => handleAddFriend(displayPerson)}
+                                    className="p-1 text-warm-purple hover:text-warm-purpleLight opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="添加为朋友"
+                                  >
+                                    <Tag className="h-4 w-4" />
+                                  </button>
                                 </div>
                               );
                             })}
                           </div>
+                          <p className="text-xs text-gray-400 mt-1">点击人名可修改，修改后再添加朋友</p>
                         </div>
                       )}
 
@@ -431,30 +562,19 @@ const Index = () => {
                   onClick={handleReRecord}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300"
                   whileTap={{ scale: 0.98 }}
-                  disabled={isSaving}
+                  disabled={isSaving || isTranscribing}
                 >
                   重新录音
                 </motion.button>
 
-                {!transcript ? (
-                  <motion.button
-                    onClick={handleTranscribe}
-                    disabled={isTranscribing}
-                    className="px-4 py-2 bg-warm-purple text-white rounded-xl hover:bg-warm-purpleLight disabled:opacity-50"
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    {isTranscribing ? "转写中..." : "AI转写"}
-                  </motion.button>
-                ) : (
-                  <motion.button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="px-4 py-2 bg-warm-yellow text-gray-800 rounded-xl hover:bg-warm-yellowLight disabled:opacity-50"
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    {isSaving ? "保存中..." : "保存"}
-                  </motion.button>
-                )}
+                <motion.button
+                  onClick={handleSave}
+                  disabled={isSaving || isTranscribing}
+                  className="px-4 py-2 bg-warm-yellow text-gray-800 rounded-xl hover:bg-warm-yellowLight disabled:opacity-50"
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {isSaving ? "保存中..." : "保存"}
+                </motion.button>
               </div>
             </motion.div>
           )}

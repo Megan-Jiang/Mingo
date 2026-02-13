@@ -26,9 +26,13 @@ async function getUserId() {
  * @returns {Promise<Array>} 记录列表
  */
 export async function getRecords(options = {}) {
+  const userId = await getUserId();
+  if (!userId) return [];
+
   let query = supabase
     .from('records')
     .select('*')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   // 可选筛选条件
@@ -55,10 +59,14 @@ export async function getRecords(options = {}) {
  * @returns {Promise<Object>} 记录详情
  */
 export async function getRecordById(id) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('用户未登录');
+
   const { data, error } = await supabase
     .from('records')
     .select('*')
     .eq('id', id)
+    .eq('user_id', userId)
     .single();
 
   if (error) {
@@ -169,9 +177,13 @@ export async function uploadRecording(audioBlob, recordId) {
  * @returns {Promise<Array>} 记录列表
  */
 export async function getRecordsByDateRange(startDate, endDate) {
+  const userId = await getUserId();
+  if (!userId) return [];
+
   const { data, error } = await supabase
     .from('records')
     .select('*')
+    .eq('user_id', userId)
     .gte('created_at', startDate.toISOString())
     .lte('created_at', endDate.toISOString())
     .order('created_at', { ascending: false });
@@ -232,9 +244,13 @@ export async function updateRecordFriendId(id, friendId) {
  * @returns {Promise<Array>} 记录列表
  */
 export async function getRecordsByPerson(personName) {
+  const userId = await getUserId();
+  if (!userId) return [];
+
   const { data, error } = await supabase
     .from('records')
     .select('*')
+    .eq('user_id', userId)
     .contains('people', [personName])
     .order('created_at', { ascending: false });
 
