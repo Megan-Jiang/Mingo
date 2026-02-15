@@ -355,7 +355,11 @@ const Calendar = () => {
 
         {loading ? (
           <div className="text-center py-8">
-            <div className="animate-spin h-6 w-6 border-2 border-warm-purple border-t-transparent rounded-full mx-auto"></div>
+            <img
+              src="/images/cat_wave.gif"
+              alt="加载中..."
+              className="w-12 h-12 mx-auto"
+            />
           </div>
         ) : currentMonthSpecialDays.length > 0 ? (
           <div className="space-y-3">

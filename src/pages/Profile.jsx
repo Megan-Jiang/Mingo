@@ -42,6 +42,17 @@ const Profile = () => {
     topFriends: []
   });
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [defaultHoliday, setDefaultHoliday] = useState(() => {
+    const saved = localStorage.getItem('defaultHoliday');
+    if (!saved) return ['春节'];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      return ['春节'];
+    }
+  });
+  const [showHolidayPicker, setShowHolidayPicker] = useState(false);
   const navigate = useNavigate();
 
   // 获取最近30天的月度统计
@@ -203,6 +214,19 @@ const Profile = () => {
     alert("AI接口配置功能即将实现");
   };
 
+  const handleDefaultHoliday = () => {
+    setShowHolidayPicker(true);
+  };
+
+  const handleSelectHoliday = (holiday) => {
+    const newHolidays = defaultHoliday.includes(holiday)
+      ? defaultHoliday.filter(h => h !== holiday)
+      : [...defaultHoliday, holiday];
+    setDefaultHoliday(newHolidays);
+    localStorage.setItem('defaultHoliday', JSON.stringify(newHolidays));
+    setShowHolidayPicker(false);
+  };
+
   const handleSignOut = async () => {
     if (!window.confirm("确定要退出登录吗？")) return;
 
@@ -248,14 +272,18 @@ const Profile = () => {
       </motion.button>
 
       <motion.button
+        onClick={handleDefaultHoliday}
         className="w-full flex items-center justify-between p-4 bg-white rounded-2xl shadow-md shadow-warm-purple/10 hover:shadow-lg hover:shadow-warm-purple/20 transition-all"
         whileTap={{ scale: 0.98 }}
       >
         <div className="flex items-center gap-3">
           <HelpCircle className="h-5 w-5 text-warm-purple" />
-          <span className="text-gray-700 tracking-wide">帮助中心</span>
+          <span className="text-gray-700 tracking-wide">默认节日</span>
         </div>
-        <ChevronRight className="h-5 w-5 text-warm-purple" />
+        <div className="flex items-center gap-2">
+          <span className="text-warm-purple font-medium">{defaultHoliday.join('、')}</span>
+          <ChevronRight className="h-5 w-5 text-warm-purple" />
+        </div>
       </motion.button>
 
       <motion.button
@@ -272,6 +300,47 @@ const Profile = () => {
         </div>
         <ChevronRight className="h-5 w-5 text-red-500" />
       </motion.button>
+
+      {/* 节日选择弹窗 */}
+      {showHolidayPicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-2xl p-6 w-full max-w-xs shadow-xl"
+          >
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">
+              选择默认节日
+            </h3>
+            <div className="space-y-3">
+              {['元旦', '春节'].map((holiday) => (
+                <motion.button
+                  key={holiday}
+                  onClick={() => handleSelectHoliday(holiday)}
+                  className={`w-full p-4 rounded-xl text-center transition-all flex items-center justify-center gap-2 ${
+                    defaultHoliday.includes(holiday)
+                      ? 'bg-warm-purple text-white'
+                      : 'bg-warm-cream text-gray-700 hover:bg-warm-purple/10'
+                  }`}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {defaultHoliday.includes(holiday) && (
+                    <span className="text-sm">✓</span>
+                  )}
+                  {holiday}
+                </motion.button>
+              ))}
+            </div>
+            <motion.button
+              onClick={() => setShowHolidayPicker(false)}
+              className="w-full mt-4 p-3 text-gray-500 hover:text-gray-700 text-center"
+              whileTap={{ scale: 0.98 }}
+            >
+              确定
+            </motion.button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 
@@ -285,7 +354,11 @@ const Profile = () => {
 
         {loadingSummary ? (
           <div className="text-center py-8">
-            <div className="animate-spin h-6 w-6 border-2 border-warm-purple border-t-transparent rounded-full mx-auto mb-3"></div>
+            <img
+              src="/images/cat_jump.gif"
+              alt="加载中..."
+              className="w-12 h-12 mx-auto mb-3"
+            />
             <p className="text-gray-500">加载中...</p>
           </div>
         ) : (

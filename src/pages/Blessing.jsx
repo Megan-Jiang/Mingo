@@ -111,7 +111,11 @@ const BlessingDialog = ({ blessing, onClose, onConfirm }) => {
           <div className="p-6">
             {loading ? (
               <div className="flex flex-col items-center justify-center py-8">
-                <div className="w-10 h-10 border-4 border-warm-purple/30 border-t-warm-purple rounded-full animate-spin mb-4" />
+                <img
+                  src="/images/cat_jump.gif"
+                  alt="加载中..."
+                  className="w-12 h-12 mb-4"
+                />
                 <p className="text-gray-500">AI 正在生成祝福语...</p>
               </div>
             ) : error ? (
@@ -135,7 +139,15 @@ const BlessingDialog = ({ blessing, onClose, onConfirm }) => {
               className="flex items-center gap-2 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-100 disabled:opacity-50 transition-colors"
               whileTap={{ scale: 0.98 }}
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? (
+                <img
+                  src="/images/cat_jump.gif"
+                  alt=""
+                  className="w-4 h-4"
+                />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
               重新生成
             </motion.button>
             <motion.button

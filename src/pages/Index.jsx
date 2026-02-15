@@ -413,7 +413,11 @@ const Index = () => {
               {/* 转写中状态 */}
               {isTranscribing && (
                 <div className="bg-warm-purpleBg rounded-2xl p-6 mb-4 flex flex-col items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-warm-purple mb-2"></div>
+                  <img
+                    src="/images/cat_clean.gif"
+                    alt="AI 转写中..."
+                    className="w-12 h-12 mb-2"
+                  />
                   <p className="text-warm-purple text-sm">AI 正在转写中...</p>
                 </div>
               )}

@@ -257,7 +257,11 @@ const PersonDetail = ({ person, onBack, onUpdate, onDelete }) => {
             title="删除朋友"
           >
             {isDeleting ? (
-              <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+              <img
+                src="/images/cat_jump.gif"
+                alt="删除中..."
+                className="w-5 h-5"
+              />
             ) : (
               <Trash2 className="h-5 w-5" />
             )}
@@ -354,7 +358,11 @@ const PersonDetail = ({ person, onBack, onUpdate, onDelete }) => {
           <div className="flex-1 overflow-y-auto p-4">
             {loading ? (
               <div className="text-center py-8">
-                <div className="animate-spin h-6 w-6 border-2 border-warm-purple border-t-transparent rounded-full mx-auto"></div>
+                <img
+                  src="/images/cat_jump.gif"
+                  alt="加载中..."
+                  className="w-12 h-12 mx-auto"
+                />
               </div>
             ) : events.length > 0 ? (
               <div className="space-y-4">
@@ -513,7 +521,11 @@ const PersonDetail = ({ person, onBack, onUpdate, onDelete }) => {
 
                   {isTranscribing && (
                     <div className="text-center py-4">
-                      <div className="animate-spin w-8 h-8 border-2 border-warm-purple border-t-transparent rounded-full mx-auto mb-2"></div>
+                      <img
+                        src="/images/cat_jump.gif"
+                        alt="AI 处理中..."
+                        className="w-12 h-12 mx-auto mb-2"
+                      />
                       <p className="text-gray-500">AI 处理中...</p>
                     </div>
                   )}

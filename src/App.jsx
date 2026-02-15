@@ -54,7 +54,11 @@ const ProtectedRoute = ({ children }) => {
     return (
       <div className="min-h-screen bg-background-custom flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#fcd753] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <img
+            src="/images/cat_jump.gif"
+            alt="加载中..."
+            className="w-16 h-16 mx-auto mb-4"
+          />
           <p className="text-gray-500">加载中...</p>
         </div>
       </div>

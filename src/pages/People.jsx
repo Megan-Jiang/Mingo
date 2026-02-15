@@ -121,7 +121,11 @@ const People = () => {
       {/* 加载状态 */}
       {loading && (
         <div className="text-center py-12">
-          <div className="animate-spin h-8 w-8 border-2 border-warm-purple border-t-transparent rounded-full mx-auto mb-4"></div>
+          <img
+            src="/images/cat_jump.gif"
+            alt="加载中..."
+            className="w-12 h-12 mx-auto mb-4"
+          />
           <p className="text-gray-500">加载中...</p>
         </div>
       )}
